@@ -216,9 +216,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle }) => {
         )}
       >
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 lg:justify-center">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            CRM Travel
-          </h1>
+          <img 
+            src="/tourism%20logo.png" 
+            alt="Tourism Logo" 
+            className="h-10 w-auto object-contain"
+          />
           <button
             onClick={onToggle}
             className="p-2 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 lg:hidden"
