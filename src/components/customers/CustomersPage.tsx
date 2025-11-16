@@ -35,8 +35,14 @@ import { ActivityModal } from "./ActivityModal";
 import { ExportModal } from "./ExportModal";
 import { BulkEmailModal } from "./BulkEmailModal";
 import { CorporateAccountsModal } from "./CorporateAccountsModal";
+import { InternalChatModal } from "../finance/InternalChatModal";
+import { CreateTicketModal } from "../support/CreateTicketModal";
+import { Mail, MessageSquare, HelpCircle } from "lucide-react";
+import supportService from "../../services/supportService";
 import { VIPCustomersModal } from "./VIPCustomersModal";
 import staffService from "../../services/staffService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 // Component now uses backend API only, no mock data
 
@@ -106,6 +112,19 @@ export const CustomersPage: React.FC = () => {
   const [isBulkEmailModalOpen, setIsBulkEmailModalOpen] = useState(false);
   const [isCorporateModalOpen, setIsCorporateModalOpen] = useState(false);
   const [isVIPModalOpen, setIsVIPModalOpen] = useState(false);
+  // Contact modals
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isTicketOpen, setIsTicketOpen] = useState(false);
+  const [contactTarget, setContactTarget] = useState<any>(null);
+  const [totalCustomersPaged, setTotalCustomersPaged] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage,
+  } = usePagination({ perPage: 10, total: totalCustomersPaged });
 
   const loadData = React.useCallback(async () => {
     try {
@@ -173,6 +192,25 @@ export const CustomersPage: React.FC = () => {
         "Failed to add customer: " +
           (error.response?.data?.message || error.message)
       );
+    }
+  };
+
+  const openContactChat = (customer: any) => {
+    setContactTarget(customer);
+    setIsChatOpen(true);
+  };
+  const openContactTicket = (customer: any) => {
+    setContactTarget(customer);
+    setIsTicketOpen(true);
+  };
+  const openContactEmail = (customer: any) => {
+    const email = customer.email || "";
+    const subject = encodeURIComponent(`Regarding your account`);
+    const body = encodeURIComponent(`Hello ${customer.name || ""},\n\n`);
+    if (email) {
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    } else {
+      toast.error("No email", "Selected customer has no email address.");
     }
   };
 
@@ -320,6 +358,48 @@ export const CustomersPage: React.FC = () => {
         "Activity Logged",
         "Activity has been recorded successfully."
       );
+
+      // If this activity represents a customer message, also create a support ticket
+      try {
+        const isMessageType =
+          activityData?.type === "message" ||
+          activityData?.type === "email" ||
+          activityData?.type === "call"; // treat contact attempts as tickets if desired
+        if (isMessageType) {
+          const subjectBase =
+            activityData?.subject ||
+            (activityData?.description
+              ? (activityData.description as string)
+              : "");
+          const subject =
+            subjectBase.length > 0
+              ? `Customer message: ${selectedCustomer.name} - ${
+                  subjectBase.length > 80
+                    ? `${subjectBase.slice(0, 77)}...`
+                    : subjectBase
+                }`
+              : `Customer message: ${selectedCustomer.name}`;
+          await supportService.createTicket({
+            customer_id: String(selectedCustomer.id),
+            subject,
+            description:
+              activityData?.description ||
+              `Message logged for ${selectedCustomer.name}`,
+            priority: "Medium",
+            assigned_to: selectedCustomer.assigned_staff_id || undefined,
+          });
+          toast.success(
+            "Ticket Created",
+            "Support ticket opened for this customer message."
+          );
+        }
+      } catch (ticketErr: any) {
+        console.error("Ticket creation failed:", ticketErr);
+        toast.error(
+          "Ticket Error",
+          ticketErr?.response?.data?.message || "Failed to create support ticket"
+        );
+      }
     } catch (error: any) {
       console.error("Error logging activity:", error);
       toast.error(
@@ -380,6 +460,19 @@ export const CustomersPage: React.FC = () => {
 
     return matchesSearch && matchesType && matchesStatus && matchesStaff;
   });
+
+  React.useEffect(() => {
+    resetPage();
+  }, [searchTerm, typeFilter, statusFilter, staffFilter, activityFilter, resetPage]);
+
+  React.useEffect(() => {
+    setTotalCustomersPaged(filteredCustomers.length);
+  }, [filteredCustomers.length]);
+
+  const visibleCustomers =
+    filteredCustomers.length === totalCustomersPaged
+      ? filteredCustomers.slice(offset, offset + perPage)
+      : filteredCustomers;
 
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter(
@@ -619,7 +712,7 @@ export const CustomersPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                    {filteredCustomers.map((customer) => (
+                    {visibleCustomers.map((customer) => (
                       <tr
                         key={customer.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -730,12 +823,42 @@ export const CustomersPage: React.FC = () => {
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </ActionGuard>
+                            {/* Contact actions: chat, ticket, email */}
+                            <button
+                              onClick={() => openContactChat(customer)}
+                              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                              title="Chat"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openContactTicket(customer)}
+                              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                              title="Create Support Ticket"
+                            >
+                              <HelpCircle className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openContactEmail(customer)}
+                              className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                              title="Send Email"
+                            >
+                              <Mail className="h-4 w-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  perPage={perPage}
+                  total={totalCustomersPaged}
+                  onPageChange={(p) => setPage(p)}
+                  compact
+                />
               </div>
             </CardContent>
           </Card>
@@ -874,6 +997,43 @@ export const CustomersPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Contact Modals */}
+      {isChatOpen && contactTarget && (
+        <InternalChatModal
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          booking={{
+            id: contactTarget.id,
+            customer: contactTarget.name || contactTarget.email || "Customer",
+            tripItem: "N/A",
+            paymentStatus: "N/A",
+            outstandingBalance: 0,
+          }}
+        />
+      )}
+      {isTicketOpen && contactTarget && (
+        <CreateTicketModal
+          isOpen={isTicketOpen}
+          onClose={() => setIsTicketOpen(false)}
+          onSave={async (ticketData) => {
+            try {
+              // Ensure customer_id defaults to selected contact if not chosen in modal
+              if (!ticketData.customer_id && contactTarget?.id) {
+                ticketData.customer_id = String(contactTarget.id);
+              }
+              if (!ticketData.subject) {
+                ticketData.subject = `Support request - ${contactTarget.name || contactTarget.email || "Customer"}`;
+              }
+              await supportService.createTicket(ticketData);
+              toast.success("Ticket Created", "Support ticket has been created.");
+            } catch (error: any) {
+              console.error("Failed to create ticket", error);
+              toast.error("Failed to create ticket", error.response?.data?.message || error.message);
+              throw error;
+            }
+          }}
+        />
+      )}
       {/* Modals */}
       <ActionGuard module="customers" action="create">
         <AddCustomerModal

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
-import { ImageIcon, MapPin, Home, Tag, Users, TrendingUp, Plus, Edit, Trash2 } from 'lucide-react';
+import { ImageIcon, MapPin, Home, Tag, Users, TrendingUp, Plus } from 'lucide-react';
 import propertyService, { Property } from '../../services/propertyService';
 import { useToastContext } from '../../contexts/ToastContext';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -11,6 +11,8 @@ import { ActionGuard } from '../auth/ActionGuard';
 import { AddPropertyModal } from './AddPropertyModal';
 import { AvailabilityModal } from './AvailabilityModal';
 import { ManageListingModal } from './ManageListingModal';
+import { usePagination } from '../../hooks/usePagination';
+import { Pagination } from '../ui/Pagination';
 
 const statusTone: Record<Property['status'], string> = {
   Available: 'text-emerald-600 dark:text-emerald-400',
@@ -31,6 +33,15 @@ export const PropertiesPage: React.FC = () => {
   const [isManageListingModalOpen, setIsManageListingModalOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const { error: showError, success: showSuccess } = useToastContext();
+  const [totalProperties, setTotalProperties] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage
+  } = usePagination({ perPage: 10, total: totalProperties });
 
   const loadProperties = useCallback(async () => {
     try {
@@ -66,7 +77,7 @@ export const PropertiesPage: React.FC = () => {
         capacity: propertyData.capacity || 0,
         occupancy: propertyData.occupancy || 0,
         description: propertyData.description,
-        ownerId: propertyData.ownerId
+        owner: propertyData.owner
       });
       await loadProperties();
       showSuccess('Property Created', 'New property has been created successfully.');
@@ -76,44 +87,8 @@ export const PropertiesPage: React.FC = () => {
     }
   };
 
-  const handleUpdateProperty = async (propertyId: number, propertyData: any) => {
-    if (!canPerformAction('properties', 'update')) {
-      showError('Access Denied', 'You do not have permission to update properties.');
-      return;
-    }
-
-    try {
-      await propertyService.updateProperty(propertyId, propertyData);
-      await loadProperties();
-      showSuccess('Property Updated', 'Property has been updated successfully.');
-    } catch (error: any) {
-      console.error('Error updating property:', error);
-      showError('Failed to update property', error.response?.data?.message || error.message);
-    }
-  };
-
-  const handleDeleteProperty = async (propertyId: number) => {
-    if (!canPerformAction('properties', 'delete')) {
-      showError('Access Denied', 'You do not have permission to delete properties.');
-      return;
-    }
-
-    if (!window.confirm('Are you sure you want to delete this property?')) {
-      return;
-    }
-
-    try {
-      await propertyService.deleteProperty(propertyId);
-      await loadProperties();
-      showSuccess('Property Deleted', 'Property has been deleted successfully.');
-    } catch (error: any) {
-      console.error('Error deleting property:', error);
-      showError('Failed to delete property', error.response?.data?.message || error.message);
-    }
-  };
-
   const filteredInventory = useMemo(() => {
-    return properties.filter((property) => {
+    const result = properties.filter((property) => {
       const matchesSearch =
         property.name.toLowerCase().includes(search.toLowerCase()) ||
         property.location.toLowerCase().includes(search.toLowerCase());
@@ -121,7 +96,21 @@ export const PropertiesPage: React.FC = () => {
       const matchesType = typeFilter === 'All' || property.type === typeFilter;
       return matchesSearch && matchesStatus && matchesType;
     });
+    return result;
   }, [properties, search, statusFilter, typeFilter]);
+
+  useEffect(() => {
+    resetPage();
+  }, [search, statusFilter, typeFilter, resetPage]);
+
+  useEffect(() => {
+    setTotalProperties(filteredInventory.length);
+  }, [filteredInventory.length]);
+
+  const visibleProperties =
+    filteredInventory.length === totalProperties
+      ? filteredInventory.slice(offset, offset + perPage)
+      : filteredInventory;
 
   return (
     <div className="space-y-6">
@@ -141,7 +130,6 @@ export const PropertiesPage: React.FC = () => {
             className="w-64"
           />
           <Select
-            label="Type"
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value as 'All' | Property['type'])}
           >
@@ -152,7 +140,6 @@ export const PropertiesPage: React.FC = () => {
             <option value="Land">Land</option>
           </Select>
           <Select
-            label="Status"
             value={statusFilter}
             onChange={(event) =>
               setStatusFilter(event.target.value as 'All' | Property['status'])
@@ -182,7 +169,7 @@ export const PropertiesPage: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {filteredInventory.map((property) => (
+        {visibleProperties.map((property) => (
           <Card key={property.id} className="border border-gray-200 dark:border-gray-700">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -238,7 +225,7 @@ export const PropertiesPage: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-start gap-2 pt-2">
                 <ActionGuard module="properties" action="update">
                   <Button 
                     size="sm" 
@@ -275,6 +262,14 @@ export const PropertiesPage: React.FC = () => {
           </Card>
         )}
       </div>
+      <Pagination
+        page={page}
+        pageCount={pageCount}
+        perPage={perPage}
+        total={totalProperties}
+        onPageChange={(p) => setPage(p)}
+        compact
+      />
 
       {/* Modals */}
       <ActionGuard module="properties" action="create">

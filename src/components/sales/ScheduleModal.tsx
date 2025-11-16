@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { X, Save, Calendar } from 'lucide-react';
-import { Input } from '../ui/Input';
-import { Select } from '../ui/Select';
-import { Button } from '../ui/Button';
-import { SalesCase } from '../../services/salesService';
+import React, { useState } from "react";
+import { X, Save, Calendar } from "lucide-react";
+import { Input } from "../ui/Input";
+import { Select } from "../ui/Select";
+import { Button } from "../ui/Button";
+import { SalesCase } from "../../services/salesService";
 
 export interface TaskData {
   title: string;
@@ -23,27 +23,32 @@ interface ScheduleModalProps {
 }
 
 const taskTypes = [
-  'Follow-up Call',
-  'Send Email',
-  'Prepare Quotation',
-  'Schedule Meeting',
-  'Document Review',
-  'Customer Visit',
-  'Internal Meeting',
-  'Contract Preparation'
+  "Follow-up Call",
+  "Send Email",
+  "Prepare Quotation",
+  "Schedule Meeting",
+  "Document Review",
+  "Customer Visit",
+  "Internal Meeting",
+  "Contract Preparation",
 ];
 
-const priorities = ['Low', 'Medium', 'High', 'Critical'];
+const priorities = ["Low", "Medium", "High", "Critical"];
 
-export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, onSave, caseData }) => {
+export const ScheduleModal: React.FC<ScheduleModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  caseData,
+}) => {
   const [formData, setFormData] = useState({
-    title: '',
-    taskType: 'Follow-up Call',
-    dueDate: '',
-    dueTime: '',
-    priority: 'Medium',
-    description: '',
-    assignedTo: 'Sarah Johnson'
+    title: "",
+    taskType: "Follow-up Call",
+    dueDate: "",
+    dueTime: "",
+    priority: "Medium",
+    description: "",
+    assignedTo: "Sarah Johnson",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -52,15 +57,15 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     const newErrors: Record<string, string> = {};
 
     if (!formData.title.trim()) {
-      newErrors.title = 'Task title is required';
+      newErrors.title = "Task title is required";
     }
 
     if (!formData.dueDate) {
-      newErrors.dueDate = 'Due date is required';
+      newErrors.dueDate = "Due date is required";
     }
 
     if (!formData.dueTime) {
-      newErrors.dueTime = 'Due time is required';
+      newErrors.dueTime = "Due time is required";
     }
 
     setErrors(newErrors);
@@ -69,7 +74,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -78,36 +83,36 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
     try {
       const taskData = {
         ...formData,
-        status: 'Pending',
-        createdAt: new Date().toISOString()
+        status: "Pending",
+        createdAt: new Date().toISOString(),
       };
 
       await onSave(taskData);
-      
+
       // Reset form
       setFormData({
-        title: '',
-        taskType: 'Follow-up Call',
-        dueDate: '',
-        dueTime: '',
-        priority: 'Medium',
-        description: '',
-        assignedTo: 'Sarah Johnson'
+        title: "",
+        taskType: "Follow-up Call",
+        dueDate: "",
+        dueTime: "",
+        priority: "Medium",
+        description: "",
+        assignedTo: "Sarah Johnson",
       });
       setErrors({});
       // Parent will handle modal close via setIsScheduleModalOpen(false)
       // Don't call onClose() here to avoid double-closing
     } catch (error) {
-      console.error('Error scheduling task:', error);
+      console.error("Error scheduling task:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -116,7 +121,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose} />
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50"
+          onClick={onClose}
+        />
         <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
@@ -140,9 +148,15 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 Related Case
               </h4>
               <div className="text-sm text-purple-700 dark:text-purple-400">
-                <p><strong>Customer:</strong> {caseData.customer}</p>
-                <p><strong>Status:</strong> {caseData.status}</p>
-                <p><strong>Type:</strong> {caseData.type}</p>
+                <p>
+                  <strong>Customer:</strong> {caseData.customer?.name || "N/A"}
+                </p>
+                <p>
+                  <strong>Status:</strong> {caseData.status}
+                </p>
+                <p>
+                  <strong>Type:</strong> {caseData.case_type || "N/A"}
+                </p>
               </div>
             </div>
 
@@ -152,7 +166,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                   <Input
                     label="Task Title *"
                     value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    onChange={(e) => handleInputChange("title", e.target.value)}
                     error={errors.title}
                     placeholder="Enter task title"
                   />
@@ -161,20 +175,28 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 <Select
                   label="Task Type"
                   value={formData.taskType}
-                  onChange={(e) => handleInputChange('taskType', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("taskType", e.target.value)
+                  }
                 >
-                  {taskTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
+                  {taskTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
                   ))}
                 </Select>
 
                 <Select
                   label="Priority"
                   value={formData.priority}
-                  onChange={(e) => handleInputChange('priority', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("priority", e.target.value)
+                  }
                 >
-                  {priorities.map(priority => (
-                    <option key={priority} value={priority}>{priority}</option>
+                  {priorities.map((priority) => (
+                    <option key={priority} value={priority}>
+                      {priority}
+                    </option>
                   ))}
                 </Select>
 
@@ -182,16 +204,16 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                   label="Due Date *"
                   type="date"
                   value={formData.dueDate}
-                  onChange={(e) => handleInputChange('dueDate', e.target.value)}
+                  onChange={(e) => handleInputChange("dueDate", e.target.value)}
                   error={errors.dueDate}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().split("T")[0]}
                 />
 
                 <Input
                   label="Due Time *"
                   type="time"
                   value={formData.dueTime}
-                  onChange={(e) => handleInputChange('dueTime', e.target.value)}
+                  onChange={(e) => handleInputChange("dueTime", e.target.value)}
                   error={errors.dueTime}
                 />
 
@@ -199,7 +221,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                   <Select
                     label="Assigned To"
                     value={formData.assignedTo}
-                    onChange={(e) => handleInputChange('assignedTo', e.target.value)}
+                    onChange={(e) =>
+                      handleInputChange("assignedTo", e.target.value)
+                    }
                   >
                     <option value="Sarah Johnson">Sarah Johnson</option>
                     <option value="Mike Chen">Mike Chen</option>
@@ -216,7 +240,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 </label>
                 <textarea
                   value={formData.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("description", e.target.value)
+                  }
                   rows={4}
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Add task description or additional notes..."
@@ -232,11 +258,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, o
                 >
                   Cancel
                 </Button>
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  loading={isLoading}
-                >
+                <Button type="submit" disabled={isLoading} loading={isLoading}>
                   <Save className="h-4 w-4 mr-2" />
                   Schedule Task
                 </Button>

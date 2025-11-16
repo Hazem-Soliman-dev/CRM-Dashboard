@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, DollarSign, Calendar, BarChart3 } from 'lucide-react';
+import { X, TrendingUp, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { Select } from '../ui/Select';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -33,7 +32,6 @@ export const RevenueDetailModal: React.FC<RevenueDetailModalProps> = ({
   isOpen, 
   onClose, 
   data, 
-  metric 
 }) => {
   const [viewMode, setViewMode] = useState<'trend' | 'category' | 'daily'>('trend');
 

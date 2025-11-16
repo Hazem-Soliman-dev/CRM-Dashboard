@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useToastContext } from "../../contexts/ToastContext";
 import { usePermissions } from "../../hooks/usePermissions";
 import { ActionGuard } from "../auth/ActionGuard";
-import reservationService from "../../services/reservationService";
+import customerService from "../../services/customerService";
 import activityService from "../../services/activityService";
 
 interface ViewCustomerModalProps {
@@ -40,13 +40,20 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
     if (isOpen && customer) {
       const fetchHistory = async () => {
         try {
-          const bookings = await reservationService.getCustomerReservations(
-            customer.id
+          const bookingsResp = await customerService.getCustomerBookings(
+            customer.id,
+            1,
+            100
           );
           const activities = await activityService.getActivitiesForCustomer(
             customer.id
           );
-          setBookingHistory(bookings.reservations || []);
+          const bookingsData =
+            (bookingsResp &&
+              (bookingsResp.reservations || bookingsResp.bookings)) ||
+            (Array.isArray(bookingsResp) ? bookingsResp : []) ||
+            [];
+          setBookingHistory(bookingsData);
           setActivityHistory(activities || []);
         } catch (error) {
           console.error("Failed to fetch customer history", error);
@@ -138,6 +145,8 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
     (sum, booking) => sum + (booking.total_amount || 0),
     0
   );
+  const avgBookingValue =
+    bookingHistory.length > 0 ? totalSpent / bookingHistory.length : 0;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -368,7 +377,7 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
                         Avg. Booking Value
                       </span>
                       <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {formatCurrency(totalSpent / bookingHistory.length)}
+                        {formatCurrency(avgBookingValue)}
                       </span>
                     </div>
                     {customer.status === "VIP" && (
@@ -399,13 +408,39 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
                               {activity.description}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">
-                              by {activity.performed_by?.full_name || activity.user?.name || "System"} •{" "}
-                              {formatDate(activity.created_at || activity.createdAt)}
+                              by{" "}
+                              {activity.performed_by?.full_name ||
+                                activity.user?.name ||
+                                "System"}{" "}
+                              •{" "}
+                              {formatDate(
+                                activity.created_at || activity.createdAt
+                              )}
                             </p>
                             {activity.details && (
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                {activity.details}
-                              </p>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {typeof activity.details === "string" ? (
+                                  activity.details
+                                ) : (
+                                  <div className="space-y-0.5">
+                                    {Object.entries(activity.details).map(
+                                      ([key, value]) => (
+                                        <div key={key}>
+                                          <span className="capitalize font-medium">
+                                            {key}
+                                          </span>
+                                          :{" "}
+                                          <span>
+                                            {Array.isArray(value)
+                                              ? value.join(", ")
+                                              : String(value)}
+                                          </span>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>

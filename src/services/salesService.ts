@@ -4,10 +4,16 @@ export interface SalesCase {
   id: string;
   case_id: string;
   customer_id: string;
+  customer?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
   lead_id?: string;
   title: string;
   description?: string;
   status: 'Open' | 'In Progress' | 'Quoted' | 'Won' | 'Lost';
+  case_type?: 'B2C' | 'B2B';
   value?: number;
   probability: number;
   expected_close_date?: string;

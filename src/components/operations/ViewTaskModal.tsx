@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, MapPin, Users, Calendar, Clock, AlertTriangle, CheckCircle, Edit, Link as LinkIcon } from 'lucide-react';
+import { X, MapPin, Users, Calendar, Clock, CheckCircle, Edit, Link as LinkIcon } from 'lucide-react';
 import { formatDate } from '../../utils/format';
 import { OperationsTask } from '../../services/taskService';
 import { Button } from '../ui/Button';

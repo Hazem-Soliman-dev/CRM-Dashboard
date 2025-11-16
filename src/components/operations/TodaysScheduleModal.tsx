@@ -209,7 +209,7 @@ export const TodaysScheduleModal: React.FC<TodaysScheduleModalProps> = ({
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h4 className="font-medium text-gray-900 dark:text-white">
-                            {trip.customer}
+                            {trip.customerName}
                           </h4>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             {trip.itinerary}

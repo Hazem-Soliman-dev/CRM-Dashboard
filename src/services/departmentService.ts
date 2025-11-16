@@ -2,7 +2,7 @@ import api from "./api";
 
 const departmentService = {
   // Get all departments
-  getAllDepartments: async (params = {}) => {
+  getAllDepartments: async (params: any = {}) => {
     // const response = await api.get('/departments', { params });
     // return response.data;
     console.warn("Returning mock department data. Endpoint does not exist.");

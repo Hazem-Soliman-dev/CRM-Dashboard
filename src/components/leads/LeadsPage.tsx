@@ -27,6 +27,10 @@ import { ViewLeadModal } from "./ViewLeadModal";
 import { EditLeadModal } from "./EditLeadModal";
 import { MessageModal } from "./MessageModal";
 import { OverdueLeadsModal } from "./OverdueLeadsModal";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
+import supportService from "../../services/supportService";
+import customerService from "../../services/customerService";
 
 export const LeadsPage: React.FC = () => {
   const { canPerformAction } = usePermissions();
@@ -60,6 +64,15 @@ export const LeadsPage: React.FC = () => {
 
   const toast = useToastContext();
   const { addNotification } = useNotificationContext();
+  const [totalLeads, setTotalLeads] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage,
+  } = usePagination({ perPage: 10, total: totalLeads });
 
   const loadLeads = React.useCallback(async () => {
     try {
@@ -274,6 +287,60 @@ export const LeadsPage: React.FC = () => {
         "Message Sent",
         `${messagePrefix} has been saved successfully.`
       );
+
+      // Additionally: create an individual support ticket for this lead message
+      try {
+        // Ensure a customer exists to associate the ticket
+        let customerId: string | undefined;
+        try {
+          const customers = await customerService.getAllCustomers({
+            search: selectedLead.email,
+            limit: 1,
+          });
+          if (customers.customers && customers.customers.length > 0) {
+            customerId = customers.customers[0].id;
+          } else {
+            const newCustomer = await customerService.createCustomer({
+              name: selectedLead.name,
+              email: selectedLead.email,
+              phone: selectedLead.phone,
+              company: selectedLead.company,
+              type: selectedLead.type === "B2B" ? "Corporate" : "Individual",
+            });
+            customerId = newCustomer.id;
+          }
+        } catch (e) {
+          // If customer lookup/creation fails, skip ticket creation but notify
+          console.error("Customer lookup/creation failed for ticket:", e);
+        }
+
+        if (customerId) {
+          const subjectBase =
+            message.length > 80 ? `${message.slice(0, 77)}...` : message;
+          const ticket = await supportService.createTicket({
+            customer_id: customerId,
+            subject: `Lead message: ${selectedLead.name} - ${subjectBase}`,
+            description: message,
+            priority: "Medium",
+            assigned_to: selectedLead.agent_id,
+          });
+          toast.success(
+            "Ticket Created",
+            `Support ticket ${ticket.ticket_id || ticket.id} created for this message.`
+          );
+        } else {
+          toast.info(
+            "Ticket Skipped",
+            "Could not link to a customer; ticket was not created."
+          );
+        }
+      } catch (ticketError: any) {
+        console.error("Error creating support ticket:", ticketError);
+        toast.error(
+          "Ticket Error",
+          ticketError?.response?.data?.message || "Failed to create support ticket"
+        );
+      }
     } catch (error: any) {
       console.error("Error sending message:", error);
       toast.error(
@@ -321,6 +388,19 @@ export const LeadsPage: React.FC = () => {
       matchesAgent
     );
   });
+
+  React.useEffect(() => {
+    resetPage();
+  }, [searchTerm, sourceFilter, typeFilter, statusFilter, agentFilter, resetPage]);
+
+  React.useEffect(() => {
+    setTotalLeads(filteredLeads.length);
+  }, [filteredLeads.length]);
+
+  const visibleLeads =
+    filteredLeads.length === totalLeads
+      ? filteredLeads.slice(offset, offset + perPage)
+      : filteredLeads;
 
   if (loading) {
     return (
@@ -529,7 +609,7 @@ export const LeadsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {filteredLeads.map((lead) => (
+                      {visibleLeads.map((lead) => (
                         <tr
                           key={lead.id}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -605,6 +685,14 @@ export const LeadsPage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                  <Pagination
+                    page={page}
+                    pageCount={pageCount}
+                    perPage={perPage}
+                    total={totalLeads}
+                    onPageChange={(p) => setPage(p)}
+                    compact
+                  />
                 </div>
               ) : (
                 <div className="text-center py-12">

@@ -3,6 +3,8 @@ import { X, User, Mail, Phone, Calendar, FileText, Package } from 'lucide-react'
 import { Button } from '../ui/Button';
 import { formatDate } from '../../utils/format';
 import { useToastContext } from '../../contexts/ToastContext';
+import { usePagination } from '../../hooks/usePagination';
+import { Pagination } from '../ui/Pagination';
 
 interface ViewCaseModalProps {
   isOpen: boolean;
@@ -47,6 +49,16 @@ const mockActivityLog = [
 
 export const ViewCaseModal: React.FC<ViewCaseModalProps> = ({ isOpen, onClose, caseData }) => {
   const toast = useToastContext();
+  const [totalLinked, setTotalLinked] = React.useState(0);
+  const [totalActivities, setTotalActivities] = React.useState(0);
+  const linkedPager = usePagination({ perPage: 3, total: totalLinked });
+  const activityPager = usePagination({ perPage: 3, total: totalActivities });
+  React.useEffect(() => {
+    setTotalLinked(caseData?.linkedItems?.length || 0);
+  }, [caseData?.linkedItems?.length]);
+  React.useEffect(() => {
+    setTotalActivities(mockActivityLog.length);
+  }, []);
 
   const handleQuickAction = (action: string) => {
     switch (action) {
@@ -202,9 +214,11 @@ export const ViewCaseModal: React.FC<ViewCaseModalProps> = ({ isOpen, onClose, c
                     Linked Items
                   </h3>
                   <div className="space-y-2">
-                    {caseData.linkedItems.map((item: string, index: number) => (
+                    {(caseData.linkedItems || [])
+                      .slice(linkedPager.offset, linkedPager.offset + linkedPager.perPage)
+                      .map((item: string, index: number) => (
                       <button
-                        key={index}
+                        key={`${index}-${item}`}
                         className="flex items-center space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors w-full text-left"
                       >
                         <Package className="h-5 w-5 text-blue-500" />
@@ -212,6 +226,14 @@ export const ViewCaseModal: React.FC<ViewCaseModalProps> = ({ isOpen, onClose, c
                       </button>
                     ))}
                   </div>
+                  <Pagination
+                    page={linkedPager.page}
+                    pageCount={linkedPager.pageCount}
+                    perPage={linkedPager.perPage}
+                    total={totalLinked}
+                    onPageChange={(p) => linkedPager.setPage(p)}
+                    compact
+                  />
                 </div>
 
                 {caseData.notes && (
@@ -231,7 +253,9 @@ export const ViewCaseModal: React.FC<ViewCaseModalProps> = ({ isOpen, onClose, c
                     Activity Log
                   </h3>
                   <div className="space-y-4">
-                    {mockActivityLog.map((activity) => (
+                    {mockActivityLog
+                      .slice(activityPager.offset, activityPager.offset + activityPager.perPage)
+                      .map((activity) => (
                       <div key={activity.id} className="flex space-x-3">
                         <div className="flex-shrink-0">
                           {getActivityIcon(activity.type)}
@@ -252,6 +276,14 @@ export const ViewCaseModal: React.FC<ViewCaseModalProps> = ({ isOpen, onClose, c
                       </div>
                     ))}
                   </div>
+                  <Pagination
+                    page={activityPager.page}
+                    pageCount={activityPager.pageCount}
+                    perPage={activityPager.perPage}
+                    total={totalActivities}
+                    onPageChange={(p) => activityPager.setPage(p)}
+                    compact
+                  />
                 </div>
 
                 {/* Quick Actions */}

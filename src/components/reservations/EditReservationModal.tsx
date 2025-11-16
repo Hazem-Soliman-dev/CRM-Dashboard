@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Calendar, Edit3 } from 'lucide-react';
+import { X, Save, Edit3 } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import customerService from '../../services/customerService';
 import supplierService from '../../services/supplierService';
 import productService from '../../services/productService';
-import { useToastContext } from '../../contexts/ToastContext';
 
 interface EditReservationModalProps {
   isOpen: boolean;
@@ -15,22 +14,9 @@ interface EditReservationModalProps {
   reservation: any;
 }
 
-const tripTypes = [
-  'Hotel: Steigenberger Luxor',
-  'Hotel: Hilton Aswan Resort',
-  'Flight: CAI-LXR Economy',
-  'Tour: Valley of Kings',
-  'Activity: Nile Felucca Ride',
-  'Package: Nile Cruise 4 Days',
-  'Transport: Airport Transfer',
-  'Cruise: Red Sea Diving'
-];
-
-const destinations = ['Luxor', 'Aswan', 'Cairo', 'Hurghada', 'Sharm El Sheikh', 'Alexandria'];
 const statuses = ['New', 'Pending', 'Confirmed', 'Awaiting Supplier', 'Reserved', 'Cancelled'];
 
 export const EditReservationModal: React.FC<EditReservationModalProps> = ({ isOpen, onClose, onSave, reservation }) => {
-  const toast = useToastContext();
   const [formData, setFormData] = useState({
     customer_id: '',
     supplier_id: '',

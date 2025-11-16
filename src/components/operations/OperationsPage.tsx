@@ -54,7 +54,9 @@ import taskService, {
   TaskPriority,
 } from "../../services/taskService";
 import { TripStatus } from "../../services/taskService";
-import userService from "../../services/userService";
+import userService, { CreateUserData } from "../../services/userService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 type AddOptionalServiceFormData = {
   tripId: number;
@@ -143,6 +145,28 @@ export const OperationsPage: React.FC = () => {
       }))
     );
   }, [trips]);
+
+  // Pagination: Trips (10 per page)
+  const [totalTripsCount, setTotalTripsCount] = useState(0);
+  const {
+    page: tripsPage,
+    perPage: tripsPerPage,
+    offset: tripsOffset,
+    pageCount: tripsPageCount,
+    setPage: setTripsPage,
+    reset: resetTripsPage,
+  } = usePagination({ perPage: 10, total: totalTripsCount });
+
+  // Pagination: Tasks (10 per page)
+  const [totalOpsTasksCount, setTotalOpsTasksCount] = useState(0);
+  const {
+    page: tasksPage,
+    perPage: tasksPerPage,
+    offset: tasksOffset,
+    pageCount: tasksPageCount,
+    setPage: setTasksPage,
+    reset: resetTasksPage,
+  } = usePagination({ perPage: 10, total: totalOpsTasksCount });
 
   const loadTrips = useCallback(async () => {
     setIsTripsLoading(true);
@@ -591,6 +615,24 @@ export const OperationsPage: React.FC = () => {
       return matchesSearch;
     });
   }, [tasks, taskSearchTerm]);
+
+  // Reset and update pagination totals for trips when filters change
+  useEffect(() => {
+    resetTripsPage();
+  }, [searchTerm, statusFilter, destinationFilter, staffFilter, dateFromFilter, dateToFilter, resetTripsPage]);
+  useEffect(() => {
+    setTotalTripsCount(filteredTrips.length);
+  }, [filteredTrips.length]);
+  const visibleTrips = filteredTrips.slice(tripsOffset, tripsOffset + tripsPerPage);
+
+  // Reset and update pagination totals for tasks when filters change
+  useEffect(() => {
+    resetTasksPage();
+  }, [taskSearchTerm, taskStatusFilter, taskPriorityFilter, taskDateFromFilter, taskDateToFilter, resetTasksPage]);
+  useEffect(() => {
+    setTotalOpsTasksCount(filteredTasks.length);
+  }, [filteredTasks.length]);
+  const visibleOpsTasks = filteredTasks.slice(tasksOffset, tasksOffset + tasksPerPage);
 
   // Calculate metrics
   const newBookingsReady = trips.filter((t) => t.status === "Planned").length;
@@ -1153,7 +1195,7 @@ export const OperationsPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredTrips.map((trip) => (
+                  visibleTrips.map((trip) => (
                     <tr
                       key={trip.id}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
@@ -1322,6 +1364,14 @@ export const OperationsPage: React.FC = () => {
                 )}
               </tbody>
             </table>
+            <Pagination
+              page={tripsPage}
+              pageCount={tripsPageCount}
+              perPage={tripsPerPage}
+              total={totalTripsCount}
+              onPageChange={(p) => setTripsPage(p)}
+              compact
+            />
           </div>
         </CardContent>
       </Card>
@@ -1459,7 +1509,7 @@ export const OperationsPage: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredTasks.map((task) => (
+                    visibleOpsTasks.map((task) => (
                       <tr
                         key={task.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -1556,6 +1606,14 @@ export const OperationsPage: React.FC = () => {
                   )}
                 </tbody>
               </table>
+              <Pagination
+                page={tasksPage}
+                pageCount={tasksPageCount}
+                perPage={tasksPerPage}
+                total={totalOpsTasksCount}
+                onPageChange={(p) => setTasksPage(p)}
+                compact
+              />
             </div>
           </CardContent>
         </Card>
@@ -1655,12 +1713,11 @@ export const OperationsPage: React.FC = () => {
               await userService.createUser({
                 email: staffData.email,
                 password: tempPassword,
-                full_name: staffData.name,
+                full_name: staffData.full_name,
                 phone: staffData.phone,
                 role: role,
                 department: staffData.department,
-              });
-
+              } as unknown as CreateUserData);
               showSuccess(
                 "Staff Added",
                 `New staff member has been added successfully. Temporary password: ${tempPassword}`

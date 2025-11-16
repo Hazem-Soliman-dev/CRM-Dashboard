@@ -24,10 +24,14 @@ import { EditCaseModal } from "./EditCaseModal";
 import { ViewCaseModal } from "./ViewCaseModal";
 import { NotesModal } from "./NotesModal";
 import { ScheduleModal } from "./ScheduleModal";
+import { TodaysTasksWidget } from "./TodaysTasksWidget";
+import { TodaysTasksModal } from "./TodaysTasksModal";
 import { useToastContext } from "../../contexts/ToastContext";
 import salesService from "../../services/salesService";
 import staffService from "../../services/staffService";
 import departmentService from "../../services/departmentService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 export const SalesPage: React.FC = () => {
   const { canPerformAction, userRole } = usePermissions();
@@ -41,6 +45,16 @@ export const SalesPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [agentFilter, setAgentFilter] = useState("All Agents");
   const [departmentFilter, setDepartmentFilter] = useState("All Departments");
+  // Pagination state (primary tables default to 10 per page)
+  const [totalCases, setTotalCases] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage,
+  } = usePagination({ perPage: 10, total: totalCases });
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -49,6 +63,12 @@ export const SalesPage: React.FC = () => {
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedCase, setSelectedCase] = useState<any>(null);
+  const [isTodaysTasksModalOpen, setIsTodaysTasksModalOpen] = useState(false);
+  const [selectedTaskForDetails, setSelectedTaskForDetails] =
+    useState<any>(null);
+
+  // Task state management
+  const [tasks, setTasks] = useState<any[]>([]);
 
   const toast = useToastContext();
 
@@ -66,7 +86,7 @@ export const SalesPage: React.FC = () => {
       }
 
       const [caseRes, agentRes, departmentRes] = await Promise.all([
-        salesService.getAllSalesCases({ ...filterParams, limit: 100 }),
+        salesService.getAllSalesCases({ ...filterParams, limit: 200 }),
         staffService.getAllStaff(),
         departmentService.getAllDepartments(),
       ]);
@@ -94,7 +114,10 @@ export const SalesPage: React.FC = () => {
         expected_close_date: caseItem.expected_close_date || "",
         // Assignment
         assigned_to: caseItem.assigned_to,
-        assignedAgent: caseItem.assigned_user?.full_name || caseItem.assigned_to?.name || "Unassigned",
+        assignedAgent:
+          caseItem.assigned_user?.full_name ||
+          caseItem.assigned_to?.name ||
+          "Unassigned",
         // Dates & notes
         lastActivity: caseItem.updated_at
           ? formatDate(caseItem.updated_at)
@@ -106,6 +129,8 @@ export const SalesPage: React.FC = () => {
         _original: caseItem,
       }));
       setCases(mappedCases);
+      // Set initial total to fetched count; effect below will sync with filtered length
+      setTotalCases(mappedCases.length);
       setAgents(agentRes.staff || []);
       setDepartments(departmentRes.departments || []);
     } catch (err: any) {
@@ -246,7 +271,7 @@ export const SalesPage: React.FC = () => {
     }
 
     const displayId = caseItem.displayId || caseItem.case_id || caseItem.id;
-    
+
     if (
       !window.confirm(
         `Are you sure you want to delete sales case ${displayId}? This action cannot be undone.`
@@ -258,7 +283,7 @@ export const SalesPage: React.FC = () => {
     try {
       // Use the database ID for deletion, not the display case_id
       const databaseId = caseItem.id || caseItem._original?.id;
-      
+
       if (!databaseId) {
         toast.error("Error", "Cannot delete: Case ID not found");
         return;
@@ -280,16 +305,17 @@ export const SalesPage: React.FC = () => {
         "Case Deleted",
         `Sales case ${displayId} has been deleted successfully.`
       );
-      
+
       // Reload data to ensure sync
       await loadData();
     } catch (error: any) {
       console.error("Error deleting case:", error);
-      const errorMessage = error.response?.data?.message || 
-                           error.message || 
-                           "Failed to delete case. Please try again.";
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to delete case. Please try again.";
       toast.error("Failed to Delete Case", errorMessage);
-      
+
       // Reload data in case of partial failure
       await loadData();
     }
@@ -345,6 +371,9 @@ export const SalesPage: React.FC = () => {
         notes: taskData.notes || `Related to sales case: ${selectedCase.id}`,
       };
 
+      // Save task to state
+      setTasks((prevTasks) => [...prevTasks, newTask]);
+
       // Close modal
       setIsScheduleModalOpen(false);
 
@@ -365,19 +394,48 @@ export const SalesPage: React.FC = () => {
     }
   };
 
+  // Filter tasks for today
+  const loadTodaysTasks = useCallback(() => {
+    const today = new Date().toISOString().split("T")[0];
+    return tasks.filter((task) => {
+      const taskDate = task.dueDate || task.scheduledAt;
+      return taskDate === today || task.status === "Overdue";
+    });
+  }, [tasks]);
+
+  // Update task status
+  const updateTaskStatus = (taskId: string, newStatus: string) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      )
+    );
+  };
+
+  // Get task details
+  const getTaskDetails = (taskId: string) => {
+    return tasks.find((task) => task.id === taskId);
+  };
+
+  // Get today's tasks
+  const todaysTasks = loadTodaysTasks();
+
   // Filter cases
   const filteredCases = cases.filter((caseItem) => {
     // For Customer role, only show their own cases
     if (userRole === "customer") {
       // Filter by customer_id matching current user's ID
       // This should be handled by the backend API, but adding client-side filter as backup
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
       return caseItem.customer_id === currentUser.id;
     }
 
     const matchesSearch =
       caseItem.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (caseItem.displayId || caseItem.id).toString().toLowerCase().includes(searchTerm.toLowerCase());
+      (caseItem.displayId || caseItem.id)
+        .toString()
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase());
     const matchesType =
       typeFilter === "All Types" || caseItem.type === typeFilter;
     const matchesStatus =
@@ -396,6 +454,38 @@ export const SalesPage: React.FC = () => {
       matchesDepartment
     );
   });
+
+  // Client-side fallback: if client-only filters are active, compute and slice locally
+  useEffect(() => {
+    // When filters or search change, reset to page 1
+    resetPage();
+  }, [
+    searchTerm,
+    typeFilter,
+    statusFilter,
+    agentFilter,
+    departmentFilter,
+    resetPage,
+  ]);
+
+  useEffect(() => {
+    const hasClientOnlyFilters =
+      typeFilter !== "All Types" ||
+      agentFilter !== "All Agents" ||
+      departmentFilter !== "All Departments" ||
+      userRole === "customer";
+    if (hasClientOnlyFilters) {
+      setTotalCases(filteredCases.length);
+    }
+  }, [
+    filteredCases.length,
+    typeFilter,
+    agentFilter,
+    departmentFilter,
+    userRole,
+  ]);
+
+  const visibleCases = filteredCases.slice(offset, offset + perPage);
 
   // Calculate comprehensive stats
   const activeLeads = cases.filter(
@@ -444,330 +534,362 @@ export const SalesPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {activeLeads}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Active Leads
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Value: ${totalCaseValue.toLocaleString()}
-                    </p>
-                  </div>
-                  <Users className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {quotationsSent}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Quotations Sent
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Avg Value: ${avgCaseValue}
-                    </p>
-                  </div>
-                  <Send className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {bookingsCreated}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Bookings Created
-                    </p>
-                    <p className="text-xs text-green-600">
-                      Won Cases: Success Path
-                    </p>
-                  </div>
-                  <BookOpen className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {awaitingResponse}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Awaiting Response
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Avg Probability: {totalProbability}%
-                    </p>
-                  </div>
-                  <Clock className="h-8 w-8 text-orange-500" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {lostCases}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Lost Cases
-                    </p>
-                    <p className="text-xs text-red-600">Review & Learn</p>
-                  </div>
-                  <Trash2 className="h-8 w-8 text-red-400" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
+      {/* Stats - full width */}
+      <div className="space-y-6">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
-                <Select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                >
-                  <option>All Types</option>
-                  <option>B2C</option>
-                  <option>B2B</option>
-                </Select>
-                <Select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option>All Status</option>
-                  <option>New</option>
-                  <option>In Progress</option>
-                  <option>Awaiting Reply</option>
-                  <option>Quotation Sent</option>
-                  <option>Won</option>
-                  <option>Lost</option>
-                </Select>
-                <Select
-                  value={agentFilter}
-                  onChange={(e) => setAgentFilter(e.target.value)}
-                >
-                  <option>All Agents</option>
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.name}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
-                >
-                  <option>All Departments</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.name}>
-                      {dept.name}
-                    </option>
-                  ))}
-                </Select>
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search cases..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {activeLeads}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Active Leads
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Value: ${totalCaseValue.toLocaleString()}
+                  </p>
                 </div>
+                <Users className="h-8 w-8 text-blue-500" />
               </div>
             </CardContent>
           </Card>
 
-          {/* Cases Table */}
           <Card>
-            <CardContent className="p-0">
-              {loading && (
-                <div className="p-12 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Loading sales cases...
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {quotationsSent}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Quotations Sent
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Avg Value: ${avgCaseValue}
                   </p>
                 </div>
-              )}
-              {error && (
-                <div className="p-6 text-center">
-                  <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-                  <p className="text-red-600 dark:text-red-400">{error}</p>
+                <Send className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {bookingsCreated}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Bookings Created
+                  </p>
+                  <p className="text-xs text-green-600">
+                    Won Cases: Success Path
+                  </p>
                 </div>
-              )}
-              {!loading && !error && (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 dark:bg-gray-800">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Case ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Customer
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Contact
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Quotation
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Linked Items
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Departments
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Last Activity
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                      {filteredCases.map((caseItem) => (
-                        <tr
-                          key={caseItem.id}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700"
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                            {caseItem.displayId || caseItem.case_id || caseItem.id}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {caseItem.customer}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {caseItem.type}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            <div>
-                              <div>{caseItem.customerEmail}</div>
-                              <div className="text-xs">
-                                {caseItem.customerPhone}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                caseItem.status
-                              )}`}
-                            >
-                              {caseItem.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getQuotationStatusColor(
-                                caseItem.quotationStatus
-                              )}`}
-                            >
-                              {caseItem.quotationStatus}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-                            <div className="space-y-1">
-                              {caseItem.linkedItems.map(
-                                (item: any, index: number) => (
-                                  <div
-                                    key={index}
-                                    className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"
-                                  >
-                                    {item}
-                                  </div>
-                                )
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {caseItem.departments.join(", ")}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {caseItem.lastActivity}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={() => handleViewCase(caseItem)}
-                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                title="View Case"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                              <ActionGuard module="sales" action="update">
-                                <button
-                                  onClick={() => handleNotesCase(caseItem)}
-                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                                  title="Notes"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </button>
-                              </ActionGuard>
-                              <ActionGuard module="sales" action="update">
-                                <button
-                                  onClick={() => handleEditCase(caseItem)}
-                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                                  title="Edit Case"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                              </ActionGuard>
-                              <ActionGuard module="sales" action="delete">
-                                <button
-                                  onClick={() => handleDeleteCase(caseItem)}
-                                  className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                  title="Delete Case"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </ActionGuard>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <BookOpen className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {awaitingResponse}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Awaiting Response
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Avg Probability: {totalProbability}%
+                  </p>
                 </div>
-              )}
+                <Clock className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {lostCases}
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Lost Cases
+                  </p>
+                  <p className="text-xs text-red-600">Review & Learn</p>
+                </div>
+                <Trash2 className="h-8 w-8 text-red-400" />
+              </div>
             </CardContent>
           </Card>
         </div>
+      </div>
 
-        
+      {/* Content grid: filters+table (left) and tasks (right) */}
+      <div className="grid grid-cols-1 lg:grid-cols-8 gap-6">
+        <div className="col-span-6 md:col-span-6">
+          <div className="flex flex-col gap-6">
+            {/* Filters */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center space-y-4 lg:space-y-0 lg:space-x-4">
+                  <Select
+                    value={typeFilter}
+                    onChange={(e) => setTypeFilter(e.target.value)}
+                  >
+                    <option>All Types</option>
+                    <option>B2C</option>
+                    <option>B2B</option>
+                  </Select>
+                  <Select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option>All Status</option>
+                    <option>New</option>
+                    <option>In Progress</option>
+                    <option>Awaiting Reply</option>
+                    <option>Quotation Sent</option>
+                    <option>Won</option>
+                    <option>Lost</option>
+                  </Select>
+                  <Select
+                    value={agentFilter}
+                    onChange={(e) => setAgentFilter(e.target.value)}
+                  >
+                    <option>All Agents</option>
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.name}>
+                        {agent.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select
+                    value={departmentFilter}
+                    onChange={(e) => setDepartmentFilter(e.target.value)}
+                  >
+                    <option>All Departments</option>
+                    {departments.map((dept) => (
+                      <option key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        placeholder="Search cases..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Cases Table */}
+            <Card>
+              <CardContent className="p-0">
+                {loading && (
+                  <div className="p-12 text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Loading sales cases...
+                    </p>
+                  </div>
+                )}
+                {error && (
+                  <div className="p-6 text-center">
+                    <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <p className="text-red-600 dark:text-red-400">{error}</p>
+                  </div>
+                )}
+                {!loading && !error && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 dark:bg-gray-800">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Case ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Customer
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Type
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Contact
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Quotation
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Linked Items
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Departments
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Last Activity
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {visibleCases.map((caseItem) => (
+                          <tr
+                            key={caseItem.id}
+                            className="hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                              {caseItem.displayId ||
+                                caseItem.case_id ||
+                                caseItem.id}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                              {caseItem.customer}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {caseItem.type}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              <div>
+                                <div>{caseItem.customerEmail}</div>
+                                <div className="text-xs">
+                                  {caseItem.customerPhone}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                                  caseItem.status
+                                )}`}
+                              >
+                                {caseItem.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getQuotationStatusColor(
+                                  caseItem.quotationStatus
+                                )}`}
+                              >
+                                {caseItem.quotationStatus}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                              <div className="space-y-1">
+                                {caseItem.linkedItems.map(
+                                  (item: any, index: number) => (
+                                    <div
+                                      key={index}
+                                      className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded"
+                                    >
+                                      {item}
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {caseItem.departments.join(", ")}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              {caseItem.lastActivity}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleViewCase(caseItem)}
+                                  className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  title="View Case"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                                <ActionGuard module="sales" action="update">
+                                  <button
+                                    onClick={() => handleNotesCase(caseItem)}
+                                    className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                                    title="Notes"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </button>
+                                </ActionGuard>
+                                <ActionGuard module="sales" action="update">
+                                  <button
+                                    onClick={() => handleEditCase(caseItem)}
+                                    className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                                    title="Edit Case"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                </ActionGuard>
+                                <ActionGuard module="sales" action="delete">
+                                  <button
+                                    onClick={() => handleDeleteCase(caseItem)}
+                                    className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                    title="Delete Case"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </ActionGuard>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <Pagination
+                      page={page}
+                      pageCount={pageCount}
+                      perPage={perPage}
+                      total={totalCases}
+                      loading={loading}
+                      onPageChange={(p) => setPage(p)}
+                      compact
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <div className="col-span-6 md:col-span-2 lg:col-span-2">
+          {/* Today's Tasks Widget - Above table on mobile, sidebar on large screens */}
+          <div className="lg:col-span-2 order-1 lg:order-2">
+            <TodaysTasksWidget
+              tasks={todaysTasks}
+              onViewAll={() => {
+                setSelectedTaskForDetails(null);
+                setIsTodaysTasksModalOpen(true);
+              }}
+              onViewDetails={(task) => {
+                setSelectedTaskForDetails(task);
+                setIsTodaysTasksModalOpen(true);
+              }}
+              onStatusChange={updateTaskStatus}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Modals */}
@@ -811,6 +933,26 @@ export const SalesPage: React.FC = () => {
           caseData={selectedCase}
         />
       </ActionGuard>
+
+      <TodaysTasksModal
+        isOpen={isTodaysTasksModalOpen}
+        onClose={() => {
+          setIsTodaysTasksModalOpen(false);
+          setSelectedTaskForDetails(null);
+        }}
+        tasks={tasks}
+        onTaskUpdate={setTasks}
+        onStatusChange={updateTaskStatus}
+        onViewCase={(caseId) => {
+          const caseItem = cases.find((c) => c.id === caseId);
+          if (caseItem) {
+            setIsTodaysTasksModalOpen(false);
+            setSelectedTaskForDetails(null);
+            handleViewCase(caseItem);
+          }
+        }}
+        initialSelectedTask={selectedTaskForDetails}
+      />
     </div>
   );
 };

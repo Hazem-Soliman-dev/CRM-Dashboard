@@ -102,6 +102,35 @@ export const LoginPage: React.FC = () => {
       setErrors((prev) => ({ ...prev, general: undefined }));
     }
   };
+  
+  const handleQuickLogin = async (quickEmail: string) => {
+    setEmail(quickEmail);
+    setPassword(DEFAULT_PASSWORD);
+    // Submit immediately
+    setIsLoading(true);
+    setErrors({});
+    try {
+      const { data, error } = await signIn(quickEmail, DEFAULT_PASSWORD);
+      if (error) {
+        const message = error.message || "Invalid email or password";
+        setErrors({ general: message });
+        toast.error("Login failed", message, 4000);
+        return;
+      }
+      if (data?.user) {
+        const userName = data.user.user_metadata?.full_name || "User";
+        toast.success(`Welcome back, ${userName}!`, "Let's make today productive.", 4000);
+        setTimeout(() => navigate("/"), 100);
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Connection error. Please try again.";
+      setErrors({ general: message });
+      toast.error("Connection error", message, 4000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -114,6 +143,35 @@ export const LoginPage: React.FC = () => {
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             Welcome back to CRM Travel
+          </p>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 py-6 px-6 shadow-lg rounded-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
+            Demo Accounts (Role-Based Access)
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => handleQuickLogin("admin@example.com")} disabled={isLoading}>
+              Admin Panel
+            </Button>
+            <Button variant="outline" onClick={() => handleQuickLogin("customer@example.com")} disabled={isLoading}>
+              Customer Panel
+            </Button>
+            <Button variant="outline" onClick={() => handleQuickLogin("sales@example.com")} disabled={isLoading}>
+              Sales Panel
+            </Button>
+            <Button variant="outline" onClick={() => handleQuickLogin("reservation@example.com")} disabled={isLoading}>
+              Reservation Panel
+            </Button>
+            <Button variant="outline" onClick={() => handleQuickLogin("finance@example.com")} disabled={isLoading}>
+              Finance Panel
+            </Button>
+            <Button variant="outline" onClick={() => handleQuickLogin("operations@example.com")} disabled={isLoading}>
+              Operations Panel
+            </Button>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
+            Each role sees different menus, data, and actions. Admin has full access.
           </p>
         </div>
 

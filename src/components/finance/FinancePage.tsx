@@ -33,6 +33,8 @@ import paymentService from "../../services/paymentService";
 import reservationService from "../../services/reservationService";
 import staffService from "../../services/staffService";
 import supplierService from "../../services/supplierService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 export const FinancePage: React.FC = () => {
   const { canPerformAction, userRole } = usePermissions();
@@ -62,6 +64,15 @@ export const FinancePage: React.FC = () => {
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
 
   const toast = useToastContext();
+  const [totalFinance, setTotalFinance] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage,
+  } = usePagination({ perPage: 10, total: totalFinance });
 
   // Load finance data from APIs
   const loadFinanceData = useCallback(async () => {
@@ -257,8 +268,8 @@ export const FinancePage: React.FC = () => {
 
       // Create payment via API - convert IDs to integers
       await paymentService.createPayment({
-        booking_id: parseInt(paymentData.bookingId.toString()),
-        customer_id: parseInt((paymentData.customerId || reservation.customer).toString()),
+        booking_id: paymentData.bookingId.toString(),
+        customer_id: (paymentData.customerId || reservation.customer).toString(),
         amount: paymentData.amount,
         payment_method: paymentData.paymentMethod || paymentData.method,
         payment_status: "Completed",
@@ -410,6 +421,20 @@ export const FinancePage: React.FC = () => {
 
     return matchesSearch && matchesStatus && matchesAgent && matchesDateRange;
   });
+
+  // Reset page on filters/search changes
+  useEffect(() => {
+    resetPage();
+  }, [searchTerm, statusFilter, agentFilter, supplierFilter, dateFromFilter, dateToFilter, resetPage]);
+
+  useEffect(() => {
+    setTotalFinance(filteredData.length);
+  }, [filteredData.length]);
+
+  const visibleFinance =
+    filteredData.length === totalFinance
+      ? filteredData.slice(offset, offset + perPage)
+      : filteredData;
 
   // Calculate metrics
   const totalPaymentsReceived = financeData.reduce(
@@ -704,7 +729,7 @@ export const FinancePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredData.map((booking) => (
+                {visibleFinance.map((booking) => (
                   <tr
                     key={booking.id}
                     className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
@@ -835,6 +860,14 @@ export const FinancePage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+            <Pagination
+              page={page}
+              pageCount={pageCount}
+              perPage={perPage}
+              total={totalFinance}
+              onPageChange={(p) => setPage(p)}
+              compact
+            />
           </div>
         </CardContent>
       </Card>

@@ -66,7 +66,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
 
     setIsLoading(true);
     try {
-      await onSave(formData);
+      await onSave(formData as unknown as StaffData);
       
       // Reset form
       setFormData({
@@ -82,16 +82,16 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
       setErrors({});
       onClose();
     } catch (error) {
-      console.error('Error adding staff:', error);
+      console.error("Error adding staff:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -140,9 +140,9 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
               <Select
                 label="Department"
                 value={formData.department}
-                onChange={(e) => handleInputChange('department', e.target.value)}
+                onChange={(e) => handleInputChange("department", e.target.value)}
               >
-                {departments.map(dept => (
+                {departments.map((dept) => (
                   <option key={dept} value={dept}>{dept}</option>
                 ))}
               </Select>

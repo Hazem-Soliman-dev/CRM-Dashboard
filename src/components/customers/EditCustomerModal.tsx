@@ -4,7 +4,6 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import staffService from '../../services/staffService';
-import { useToastContext } from '../../contexts/ToastContext';
 
 interface EditCustomerModalProps {
   isOpen: boolean;
@@ -18,7 +17,6 @@ const contactMethods = ['Email', 'Phone', 'WhatsApp'];
 const statuses = ['Active', 'Inactive', 'Suspended'];
 
 export const EditCustomerModal: React.FC<EditCustomerModalProps> = ({ isOpen, onClose, onSave, customer }) => {
-  const toast = useToastContext();
   const [staff, setStaff] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     fullName: '',

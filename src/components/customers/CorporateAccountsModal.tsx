@@ -17,60 +17,10 @@ interface CorporateAccountsModalProps {
   onClose: () => void;
 }
 
-// Legacy mock data - kept for reference
-const mockCorporateAccounts = [
-  {
-    id: 'CORP-001',
-    companyName: 'TechCorp Solutions',
-    primaryContact: 'John Smith',
-    email: 'john.smith@techcorp.com',
-    phone: '+1-555-123-4567',
-    customerCount: 24,
-    totalBookings: 156,
-    totalRevenue: 89500,
-    lastBooking: '2025-01-10',
-    status: 'VIP',
-    accountManager: 'Mike Chen',
-    contractValue: 120000,
-    renewalDate: '2025-12-31'
-  },
-  {
-    id: 'CORP-002',
-    companyName: 'Global Marketing Inc',
-    primaryContact: 'Sarah Wilson',
-    email: 'sarah@globalmarketing.com',
-    phone: '+1-555-987-6543',
-    customerCount: 18,
-    totalBookings: 89,
-    totalRevenue: 45200,
-    lastBooking: '2025-01-08',
-    status: 'Active',
-    accountManager: 'Lisa Rodriguez',
-    contractValue: 60000,
-    renewalDate: '2025-08-15'
-  },
-  {
-    id: 'CORP-003',
-    companyName: 'Innovation Labs',
-    primaryContact: 'David Brown',
-    email: 'david@innovationlabs.com',
-    phone: '+1-555-456-7890',
-    customerCount: 12,
-    totalBookings: 34,
-    totalRevenue: 28900,
-    lastBooking: '2024-12-20',
-    status: 'Active',
-    accountManager: 'Sarah Johnson',
-    contractValue: 40000,
-    renewalDate: '2025-06-30'
-  }
-];
-
 export const CorporateAccountsModal: React.FC<CorporateAccountsModalProps> = ({ isOpen, onClose }) => {
   const toast = useToastContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
-  const [showAccountDetails, setShowAccountDetails] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);

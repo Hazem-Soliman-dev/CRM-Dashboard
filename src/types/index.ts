@@ -3,7 +3,7 @@ export interface User {
   email: string;
   full_name: string;
   avatar_url?: string;
-  role: 'admin' | 'manager' | 'agent';
+  role: 'admin' | 'customer' | 'sales' | 'reservation' | 'finance' | 'operations';
   created_at: string;
   updated_at: string;
 }

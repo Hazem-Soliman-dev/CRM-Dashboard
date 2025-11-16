@@ -2,7 +2,7 @@ import api from './api';
 
 export interface NotificationItem {
   id: number;
-  type: 'lead' | 'customer' | 'booking' | 'payment' | 'support' | 'system' | 'task';
+  type: 'lead' | 'customer' | 'booking' | 'payment' | 'support' | 'system' | 'task' | 'attendance';
   title: string;
   message: string;
   entityType?: string | null;

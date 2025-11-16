@@ -3,7 +3,7 @@ import { X, Save } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
-import ownerService, { Owner } from '../../services/ownerService';
+import { Owner } from '../../services/ownerService';
 
 interface EditOwnerModalProps {
   isOpen: boolean;

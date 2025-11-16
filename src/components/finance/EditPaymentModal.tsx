@@ -3,7 +3,6 @@ import { X, Save, DollarSign } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
-import { formatCurrency } from '../../utils/format';
 import { useToastContext } from '../../contexts/ToastContext';
 import paymentService, { UpdatePaymentData } from '../../services/paymentService';
 

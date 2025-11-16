@@ -20,6 +20,9 @@ export interface Lead {
   notes?: string;
   last_contact?: string;
   next_followup?: string;
+  // Optional links to related entities
+  customer_id?: string;
+  reservation_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +53,9 @@ export interface UpdateLeadData {
   notes?: string;
   last_contact?: string;
   next_followup?: string;
+  // Optional links to related entities
+  customer_id?: string;
+  reservation_id?: string;
 }
 
 export interface LeadFilters {

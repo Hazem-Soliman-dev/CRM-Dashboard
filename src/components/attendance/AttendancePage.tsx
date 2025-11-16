@@ -14,6 +14,7 @@ import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { formatDate } from "../../utils/format";
 import { useAuth } from "../../hooks/useAuth";
+import { usePermissions } from "../../hooks/usePermissions";
 import { RoleGuard } from "../auth/RoleGuard";
 import { ActionGuard } from "../auth/ActionGuard";
 import { ExportModal } from "./ExportModal";
@@ -24,22 +25,35 @@ import { AddReasonModal } from "./AddReasonModal";
 import { useToastContext } from "../../contexts/ToastContext";
 import attendanceService from "../../services/attendanceService";
 import staffService from "../../services/staffService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 // Defining department statistics for display.
 const departmentStats = [
-  { department: "Sales", attendance: 85, color: "bg-blue-500" },
-  { department: "Operations", attendance: 92, color: "bg-green-500" },
-  { department: "Finance", attendance: 88, color: "bg-purple-500" },
-  { department: "Reservation", attendance: 90, color: "bg-orange-500" },
+  { department: "sales", attendance: 85, color: "bg-blue-500" },
+  { department: "operations", attendance: 92, color: "bg-green-500" },
+  { department: "finance", attendance: 88, color: "bg-purple-500" },
+  { department: "reservation", attendance: 90, color: "bg-orange-500" },
 ];
 
 export const AttendancePage: React.FC = () => {
   const { userRole } = useAuth();
+  const {
+    canAccessModule,
+    userRole: mappedRole,
+    canSelfAttend,
+  } = usePermissions();
   const [attendance, setAttendance] = useState<any[]>([]);
+  const [todayRecord, setTodayRecord] = useState<any | null>(null);
   const [staff, setStaff] = useState<any[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const normalizedRole = (mappedRole || userRole || "").toLowerCase();
+  const selfMode =
+    !canAccessModule("attendance") &&
+    canSelfAttend &&
+    normalizedRole !== "customer";
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("All Departments");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -50,6 +64,11 @@ export const AttendancePage: React.FC = () => {
   });
   const [viewMode, setViewMode] = useState<"table" | "calendar">("table");
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [total, setTotal] = useState(0);
+  const { page, perPage, offset, pageCount, setPage, reset } = usePagination({
+    perPage: 10,
+    total,
+  });
 
   // Modal states
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -67,19 +86,27 @@ export const AttendancePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [attendanceRes, staffRes, leaveRes] = await Promise.all([
-        attendanceService.getAttendance({
-          date_from: dateFilter.from,
-          date_to: dateFilter.to,
-          status: statusFilter !== "All Status" ? statusFilter : undefined,
-          staff_id: staffFilter !== "All Staff" ? staffFilter : undefined,
-        }),
-        staffService.getAllStaff(),
-        attendanceService.getLeaveRequests(),
-      ]);
-      setAttendance(attendanceRes.attendance || []);
-      setStaff(staffRes.staff || []);
-      setLeaveRequests(leaveRes.requests || []);
+      if (selfMode) {
+        const today = await attendanceService.getTodayAttendance();
+        setTodayRecord(today);
+        setAttendance([]);
+        setStaff([]);
+        setLeaveRequests([]);
+      } else {
+        const [attendanceRes, staffRes, leaveRes] = await Promise.all([
+          attendanceService.getAttendance({
+            date_from: dateFilter.from,
+            date_to: dateFilter.to,
+            status: statusFilter !== "All Status" ? statusFilter : undefined,
+            staff_id: staffFilter !== "All Staff" ? staffFilter : undefined,
+          }),
+          staffService.getAllStaff(),
+          attendanceService.getLeaveRequests(),
+        ]);
+        setAttendance(attendanceRes.attendance || []);
+        setStaff(staffRes.staff || []);
+        setLeaveRequests(leaveRes.requests || []);
+      }
     } catch (err: any) {
       console.error("Failed to load attendance data", err);
       setError("Failed to load data. Please try again.");
@@ -90,7 +117,7 @@ export const AttendancePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter, searchTerm, statusFilter, staffFilter, toast]);
+  }, [dateFilter, searchTerm, statusFilter, staffFilter, toast, selfMode]);
 
   useEffect(() => {
     loadData();
@@ -135,6 +162,67 @@ export const AttendancePage: React.FC = () => {
     }
   };
 
+  // Self-mode minimal UI
+  if (selfMode) {
+    const isWorking = !!todayRecord && !todayRecord.clock_out;
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">My Attendance (Today)</h1>
+          <div className="text-sm text-gray-500">
+            {currentTime.toLocaleDateString()}{" "}
+            {currentTime.toLocaleTimeString()}
+          </div>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Today</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-gray-500">Status</div>
+                <div className="text-lg font-medium">
+                  {todayRecord
+                    ? todayRecord.status || (isWorking ? "Working" : "On Time")
+                    : "Not clocked in"}
+                </div>
+                <div className="mt-2 text-sm text-gray-500">
+                  In:{" "}
+                  {todayRecord?.clock_in
+                    ? new Date(todayRecord.clock_in).toLocaleTimeString()
+                    : "-"}{" "}
+                  · Out:{" "}
+                  {todayRecord?.clock_out
+                    ? new Date(todayRecord.clock_out).toLocaleTimeString()
+                    : "-"}
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleClockIn}
+                  disabled={
+                    !!todayRecord &&
+                    !!todayRecord.clock_in &&
+                    !todayRecord.clock_out
+                  }
+                >
+                  <Clock className="mr-2 h-4 w-4" /> Clock In
+                </Button>
+                <Button
+                  onClick={handleClockOut}
+                  disabled={!todayRecord || !!todayRecord?.clock_out}
+                >
+                  <LogOut className="mr-2 h-4 w-4" /> Clock Out
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const handleOpenTimeAdjustment = (employee: any) => {
     setSelectedEmployee(employee);
     setIsTimeAdjustmentModalOpen(true);
@@ -142,21 +230,31 @@ export const AttendancePage: React.FC = () => {
 
   const handleTimeAdjustment = async (adjustmentData: any) => {
     try {
-      console.log("Adjusting time for:", selectedEmployee?.employee, adjustmentData);
+      console.log(
+        "Adjusting time for:",
+        selectedEmployee?.employee,
+        adjustmentData
+      );
       // Use user_id or employee_id from selectedEmployee
-      const employeeId = selectedEmployee?.user_id || selectedEmployee?.employee_id || selectedEmployee?.id;
+      const employeeId =
+        selectedEmployee?.user_id ||
+        selectedEmployee?.employee_id ||
+        selectedEmployee?.id;
       await attendanceService.updateAttendance(employeeId, {
         date: adjustmentData.date || dateFilter.from,
         clock_in: adjustmentData.clockIn,
         clock_out: adjustmentData.clockOut,
-        notes: adjustmentData.reason || "Time adjustment"
+        notes: adjustmentData.reason || "Time adjustment",
       });
       // Close modal
       setIsTimeAdjustmentModalOpen(false);
       setSelectedEmployee(null);
       // Reload data
       await loadData();
-      toast.success("Time Adjusted!", "Attendance time has been adjusted successfully.");
+      toast.success(
+        "Time Adjusted!",
+        "Attendance time has been adjusted successfully."
+      );
     } catch (error: any) {
       console.error("Error adjusting time:", error);
       toast.error(
@@ -197,7 +295,10 @@ export const AttendancePage: React.FC = () => {
       console.log("Approving leave:", requestId);
       await attendanceService.approveLeaveRequest(requestId);
       await loadData();
-      toast.success("Leave Approved!", "Leave request has been approved successfully.");
+      toast.success(
+        "Leave Approved!",
+        "Leave request has been approved successfully."
+      );
     } catch (error: any) {
       console.error("Error approving leave:", error);
       toast.error(
@@ -215,7 +316,10 @@ export const AttendancePage: React.FC = () => {
         "Rejected by manager"
       );
       await loadData();
-      toast.success("Leave Rejected!", "Leave request has been rejected successfully.");
+      toast.success(
+        "Leave Rejected!",
+        "Leave request has been rejected successfully."
+      );
     } catch (error: any) {
       console.error("Error rejecting leave:", error);
       toast.error(
@@ -232,13 +336,16 @@ export const AttendancePage: React.FC = () => {
       await attendanceService.updateAttendance(reasonData.employeeId, {
         date: reasonData.date || dateFilter.from,
         notes: reasonData.reason,
-        status: "Absent"
+        status: "Absent",
       });
       // Close modal
       setIsAddReasonModalOpen(false);
       // Reload data
       await loadData();
-      toast.success("Reason Added!", "Absence reason has been recorded successfully.");
+      toast.success(
+        "Reason Added!",
+        "Absence reason has been recorded successfully."
+      );
     } catch (error: any) {
       console.error("Error adding reason:", error);
       toast.error(
@@ -272,11 +379,13 @@ export const AttendancePage: React.FC = () => {
   // Filter attendance
   const filteredAttendance = attendance.filter((record) => {
     // For non-admin users, only show their own attendance
-    if (userRole !== "admin" && userRole !== "Admin") {
+    if (userRole !== "admin") {
       // Filter by user_id matching current user's ID
       // This should be handled by the backend API, but adding client-side filter as backup
-      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-      return record.user_id === currentUser.id || record.user?.id === currentUser.id;
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      return (
+        record.user_id === currentUser.id || record.user?.id === currentUser.id
+      );
     }
     const recordEmployee = record.employee || "";
     const matchesSearch = recordEmployee
@@ -291,24 +400,47 @@ export const AttendancePage: React.FC = () => {
     return matchesSearch && matchesDepartment && matchesStatus;
   });
 
+  // Pagination handling
+  useEffect(() => {
+    reset();
+  }, [
+    searchTerm,
+    departmentFilter,
+    statusFilter,
+    staffFilter,
+    dateFilter.from,
+    dateFilter.to,
+    reset,
+  ]);
+  useEffect(() => {
+    setTotal(filteredAttendance.length);
+  }, [filteredAttendance.length]);
+  const visibleAttendance = filteredAttendance.slice(offset, offset + perPage);
+
   // Calculate metrics - handle both frontend and backend status values
   const activeToday = attendance.filter(
     (a) =>
-      a.status === "On Time" || a.status === "Present" || 
-      a.status === "Late" || 
-      a.status === "Working" || a.status === "Half Day"
+      a.status === "On Time" ||
+      a.status === "Present" ||
+      a.status === "Late" ||
+      a.status === "Working" ||
+      a.status === "Half Day"
   ).length;
-  const onLeave = attendance.filter((a) => a.status === "On Leave" || a.status === "Leave").length;
+  const onLeave = attendance.filter(
+    (a) => a.status === "On Leave" || a.status === "Leave"
+  ).length;
   const lateToday = attendance.filter((a) => a.status === "Late").length;
   // Calculate real stats from data
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  
-  const absencesThisMonth = attendance.filter(record => {
+
+  const absencesThisMonth = attendance.filter((record) => {
     const recordDate = new Date(record.date || record.created_at);
-    return recordDate.getMonth() === currentMonth && 
-           recordDate.getFullYear() === currentYear &&
-           (record.status === 'Absent' || record.status === 'Late');
+    return (
+      recordDate.getMonth() === currentMonth &&
+      recordDate.getFullYear() === currentYear &&
+      (record.status === "Absent" || record.status === "Late")
+    );
   }).length;
 
   const totalOvertimeHours = attendance.reduce((total, record) => {
@@ -318,10 +450,12 @@ export const AttendancePage: React.FC = () => {
   }, 0);
   const totalOvertime = `${Math.round(totalOvertimeHours)}h`;
 
-  const upcomingVacations = leaveRequests.filter(request => {
+  const upcomingVacations = leaveRequests.filter((request) => {
     const startDate = new Date(request.start_date);
-    return startDate > new Date() && 
-           (request.status === 'Pending' || request.status === 'Approved');
+    return (
+      startDate > new Date() &&
+      (request.status === "Pending" || request.status === "Approved")
+    );
   }).length;
 
   return (
@@ -606,7 +740,7 @@ export const AttendancePage: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      filteredAttendance.map((record) => (
+                      visibleAttendance.map((record) => (
                         <tr
                           key={record.id}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700"
@@ -616,7 +750,11 @@ export const AttendancePage: React.FC = () => {
                               <div className="flex-shrink-0 h-8 w-8">
                                 <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
                                   <span className="text-xs font-medium text-white">
-                                    {((record.employee || record.employee_name || ""))
+                                    {(
+                                      record.employee ||
+                                      record.employee_name ||
+                                      ""
+                                    )
                                       .split(" ")
                                       .map((n: string) => n[0])
                                       .join("")
@@ -626,22 +764,44 @@ export const AttendancePage: React.FC = () => {
                               </div>
                               <div className="ml-3">
                                 <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {record.employee || record.employee_name || 'Unknown'}
+                                  {record.employee ||
+                                    record.employee_name ||
+                                    "Unknown"}
                                 </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {record.department || 'N/A'}
+                            {record.department || "N/A"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {record.shift || 'Day'}
+                            {record.shift || "Day"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {record.checkIn || record.clock_in ? (record.checkIn || (record.clock_in ? new Date(record.clock_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A')) : 'N/A'}
+                            {record.checkIn || record.clock_in
+                              ? record.checkIn ||
+                                (record.clock_in
+                                  ? new Date(
+                                      record.clock_in
+                                    ).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "N/A")
+                              : "N/A"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {record.checkOut || record.clock_out ? (record.checkOut || (record.clock_out ? new Date(record.clock_out).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : 'N/A')) : 'N/A'}
+                            {record.checkOut || record.clock_out
+                              ? record.checkOut ||
+                                (record.clock_out
+                                  ? new Date(
+                                      record.clock_out
+                                    ).toLocaleTimeString("en-US", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })
+                                  : "N/A")
+                              : "N/A"}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span
@@ -669,6 +829,14 @@ export const AttendancePage: React.FC = () => {
                     )}
                   </tbody>
                 </table>
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  perPage={perPage}
+                  total={total}
+                  onPageChange={(p) => setPage(p)}
+                  compact
+                />
               </div>
             </CardContent>
           </Card>
@@ -694,10 +862,7 @@ export const AttendancePage: React.FC = () => {
                   <Button className="w-full" onClick={handleClockIn}>
                     Check In
                   </Button>
-                  <Button
-                    className="w-full"
-                    onClick={handleClockOut}
-                  >
+                  <Button className="w-full" onClick={handleClockOut}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Check Out
                   </Button>

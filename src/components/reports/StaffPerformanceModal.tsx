@@ -67,7 +67,6 @@ const departmentPerformance = [
 export const StaffPerformanceModal: React.FC<StaffPerformanceModalProps> = ({ 
   isOpen, 
   onClose, 
-  data 
 }) => {
   const [viewMode, setViewMode] = useState<'individual' | 'department' | 'comparison'>('individual');
   const [selectedStaff, setSelectedStaff] = useState(detailedStaffData[0]);

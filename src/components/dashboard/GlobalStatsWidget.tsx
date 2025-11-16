@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, BarChart3, TrendingUp, Users, DollarSign } from 'lucide-react';
+import { X, BarChart3, Users, DollarSign } from 'lucide-react';
 import { Card, CardContent } from '../ui/Card';
 import dashboardService from '../../services/dashboardService';
 import { formatCurrency } from '../../utils/format';

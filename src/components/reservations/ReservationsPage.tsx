@@ -40,6 +40,8 @@ import reservationService from "../../services/reservationService";
 import taskService from "../../services/taskService";
 import staffService from "../../services/staffService";
 import supplierService from "../../services/supplierService";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 export const ReservationsPage: React.FC = () => {
   const { canPerformAction, userRole } = usePermissions();
@@ -70,6 +72,15 @@ export const ReservationsPage: React.FC = () => {
   const [selectedReservation, setSelectedReservation] = useState<any>(null);
 
   const toast = useToastContext();
+  const [totalReservations, setTotalReservations] = useState(0);
+  const {
+    page,
+    perPage,
+    offset,
+    pageCount,
+    setPage,
+    reset: resetPage,
+  } = usePagination({ perPage: 10, total: totalReservations });
 
   // Load reservations from API
   const loadData = useCallback(async () => {
@@ -494,6 +505,28 @@ export const ReservationsPage: React.FC = () => {
     );
   });
 
+  // Reset page when filters/search change
+  useEffect(() => {
+    resetPage();
+  }, [
+    searchTerm,
+    statusFilter,
+    supplierFilter,
+    agentFilter,
+    financeFilter,
+    dateFromFilter,
+    dateToFilter,
+    resetPage,
+  ]);
+
+  useEffect(() => {
+    setTotalReservations(filteredReservations.length);
+  }, [filteredReservations.length]);
+
+  const visibleReservations =
+    filteredReservations.length === totalReservations
+      ? filteredReservations.slice(offset, offset + perPage)
+      : filteredReservations;
   // Calculate metrics
   const newAssignments = reservations.filter((r) => r.status === "New").length;
   const pendingConfirmations = reservations.filter(
@@ -827,7 +860,7 @@ export const ReservationsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredReservations.map((reservation) => (
+                  {visibleReservations.map((reservation) => (
                     <tr
                       key={reservation.id}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
@@ -996,6 +1029,14 @@ export const ReservationsPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+              <Pagination
+                page={page}
+                pageCount={pageCount}
+                perPage={perPage}
+                total={totalReservations}
+                onPageChange={(p) => setPage(p)}
+                compact
+              />
             </div>
           )}
         </CardContent>

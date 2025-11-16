@@ -1,4 +1,4 @@
-import api from './api';
+import api from "./api";
 
 export interface Customer {
   id: string;
@@ -7,9 +7,9 @@ export interface Customer {
   email: string;
   phone: string;
   company?: string;
-  type: 'Individual' | 'Corporate';
-  status: 'Active' | 'Inactive' | 'Suspended';
-  contact_method: 'Email' | 'Phone' | 'SMS';
+  type: "Individual" | "Corporate";
+  status: "Active" | "Inactive" | "Suspended";
+  contact_method: "Email" | "Phone" | "SMS";
   assigned_staff_id?: string;
   assigned_staff?: {
     id: string;
@@ -29,8 +29,8 @@ export interface CreateCustomerData {
   email: string;
   phone: string;
   company?: string;
-  type: 'Individual' | 'Corporate';
-  contact_method?: 'Email' | 'Phone' | 'SMS';
+  type: "Individual" | "Corporate";
+  contact_method?: "Email" | "Phone" | "SMS";
   assigned_staff_id?: string;
   notes?: string;
 }
@@ -40,9 +40,9 @@ export interface UpdateCustomerData {
   email?: string;
   phone?: string;
   company?: string;
-  type?: 'Individual' | 'Corporate';
-  status?: 'Active' | 'Inactive' | 'Suspended';
-  contact_method?: 'Email' | 'Phone' | 'SMS';
+  type?: "Individual" | "Corporate";
+  status?: "Active" | "Inactive" | "Suspended";
+  contact_method?: "Email" | "Phone" | "SMS";
   assigned_staff_id?: string;
   notes?: string;
 }
@@ -68,8 +68,9 @@ interface PaginatedCustomers {
 const transformCustomer = (customer: any): any => {
   return {
     ...customer,
-    assignedStaff: customer.assigned_staff?.full_name || customer.assigned_staff_id || '',
-    contactMethod: customer.contact_method || 'Email',
+    assignedStaff:
+      customer.assigned_staff?.full_name || customer.assigned_staff_id || "",
+    contactMethod: customer.contact_method || "Email",
     totalBookings: customer.total_bookings || 0,
     lastTrip: customer.last_trip,
     createdAt: customer.created_at,
@@ -81,13 +82,15 @@ const transformCustomer = (customer: any): any => {
     total_bookings: customer.total_bookings,
     last_trip: customer.last_trip,
     created_at: customer.created_at,
-    updated_at: customer.updated_at
+    updated_at: customer.updated_at,
   };
 };
 
 const customerService = {
-  getAllCustomers: async (filters: CustomerFilters = {}): Promise<PaginatedCustomers> => {
-    const response = await api.get('/customers', { params: filters });
+  getAllCustomers: async (
+    filters: CustomerFilters = {}
+  ): Promise<PaginatedCustomers> => {
+    const response = await api.get("/customers", { params: filters });
     // Backend returns { success: true, data: [...], pagination: {...} }
     const customers = response.data?.data || [];
     // Transform snake_case to camelCase
@@ -96,14 +99,14 @@ const customerService = {
       page: filters.page || 1,
       limit: filters.limit || 10,
       total: customers.length,
-      totalPages: 1
+      totalPages: 1,
     };
     return {
       customers: transformedCustomers,
       page: pagination.page,
       limit: pagination.limit,
       totalPages: pagination.totalPages,
-      totalResults: pagination.total
+      totalResults: pagination.total,
     };
   },
 
@@ -112,12 +115,17 @@ const customerService = {
     return transformCustomer(response.data.data);
   },
 
-  createCustomer: async (customerData: CreateCustomerData): Promise<Customer> => {
-    const response = await api.post('/customers', customerData);
+  createCustomer: async (
+    customerData: CreateCustomerData
+  ): Promise<Customer> => {
+    const response = await api.post("/customers", customerData);
     return transformCustomer(response.data.data);
   },
 
-  updateCustomer: async (id: string, customerData: UpdateCustomerData): Promise<Customer> => {
+  updateCustomer: async (
+    id: string,
+    customerData: UpdateCustomerData
+  ): Promise<Customer> => {
     const response = await api.put(`/customers/${id}`, customerData);
     return transformCustomer(response.data.data);
   },
@@ -131,29 +139,45 @@ const customerService = {
     return response.data.data;
   },
 
-  getCustomerBookings: async (id: string, page = 1, limit = 10): Promise<any> => {
+  getCustomerBookings: async (
+    id: string,
+    page = 1,
+    limit = 10
+  ): Promise<any> => {
     const response = await api.get(`/customers/${id}/bookings`, {
-      params: { page, limit }
+      params: { page, limit },
     });
     return response.data;
   },
 
-  getCustomerPayments: async (id: string, page = 1, limit = 10): Promise<any> => {
+  getCustomerPayments: async (
+    id: string,
+    page = 1,
+    limit = 10
+  ): Promise<any> => {
     const response = await api.get(`/customers/${id}/payments`, {
-      params: { page, limit }
+      params: { page, limit },
     });
     return response.data;
   },
 
-  updateCustomerStatus: async (id: string, status: 'Active' | 'Inactive' | 'Suspended'): Promise<Customer> => {
+  updateCustomerStatus: async (
+    id: string,
+    status: "Active" | "Inactive" | "Suspended"
+  ): Promise<Customer> => {
     const response = await api.patch(`/customers/${id}/status`, { status });
     return transformCustomer(response.data.data);
   },
 
-  assignCustomerToStaff: async (id: string, assigned_staff_id: string): Promise<Customer> => {
-    const response = await api.patch(`/customers/${id}/assign`, { assigned_staff_id });
+  assignCustomerToStaff: async (
+    id: string,
+    assigned_staff_id: string
+  ): Promise<Customer> => {
+    const response = await api.patch(`/customers/${id}/assign`, {
+      assigned_staff_id,
+    });
     return transformCustomer(response.data.data);
-  }
+  },
 };
 
 export default customerService;

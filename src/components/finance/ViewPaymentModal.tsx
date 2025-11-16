@@ -3,7 +3,6 @@ import { X, DollarSign, Calendar, FileText, Clock, CheckCircle, Edit, Trash2 } f
 import { Button } from '../ui/Button';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { useToastContext } from '../../contexts/ToastContext';
-import { usePermissions } from '../../hooks/usePermissions';
 import { ActionGuard } from '../auth/ActionGuard';
 import paymentService from '../../services/paymentService';
 import invoiceService from '../../services/invoiceService';
@@ -26,7 +25,6 @@ export const ViewPaymentModal: React.FC<ViewPaymentModalProps> = ({
   onRefresh
 }) => {
   const toast = useToastContext();
-  const { canPerformAction } = usePermissions();
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [invoiceHistory, setInvoiceHistory] = useState<any[]>([]);
 

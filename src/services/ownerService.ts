@@ -19,11 +19,14 @@ export interface Owner {
 export interface OwnerFilters {
   status?: 'Active' | 'Onboarding' | 'Dormant' | 'All';
   search?: string;
+  page?: number;
+  limit?: number;
 }
 
 const ownerService = {
   async getOwners(filters: OwnerFilters = {}): Promise<Owner[]> {
     const response = await api.get('/owners', { params: filters });
+    // Support optional pagination in backend; return data array for now
     return response.data.data;
   },
 

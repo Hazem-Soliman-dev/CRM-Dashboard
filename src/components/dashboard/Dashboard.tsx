@@ -30,6 +30,8 @@ import { useToastContext } from "../../contexts/ToastContext";
 import { useAuth } from "../../hooks/useAuth";
 import { usePermissions } from "../../hooks/usePermissions";
 import { RoleGuard } from "../auth/RoleGuard";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 import { ActionGuard } from "../auth/ActionGuard";
 
 // Component now uses backend API only, no mock data fallback
@@ -60,10 +62,25 @@ export const Dashboard: React.FC = () => {
   });
   const [revenueData, setRevenueData] = React.useState<any[]>([]);
   const [leadSourceData, setLeadSourceData] = React.useState<any[]>([]);
+  const [todayTasks, setTodayTasks] = React.useState<any[]>([]);
+  const [checklist, setChecklist] = React.useState<any[]>([]);
+  const [recentTotal, setRecentTotal] = React.useState(0);
+  const {
+    page: recentPage,
+    perPage: recentPerPage,
+    offset: recentOffset,
+    pageCount: recentPageCount,
+    setPage: setRecentPage,
+    reset: resetRecentPage,
+  } = usePagination({ perPage: 5, total: recentTotal });
 
   React.useEffect(() => {
     loadDashboardData();
   }, []);
+
+  React.useEffect(() => {
+    setRecentTotal(recentActivity.length);
+  }, [recentActivity.length]);
 
   const loadDashboardData = async () => {
     try {
@@ -206,45 +223,85 @@ export const Dashboard: React.FC = () => {
       }
 
       // Load recent activity
-      const recentAct = await dashboardService.getRecentActivity(10);
+      const recentAct = await dashboardService.getRecentActivity(100);
       setRecentActivity(recentAct || []);
 
+      // Load today's tasks (role-aware) - skip for admin to keep old behavior
+      if ((userRole || "").toLowerCase() !== "admin") {
+        try {
+          const tasksResp = await dashboardService.getTodayTasks();
+          setTodayTasks(tasksResp.tasks || []);
+          setChecklist(tasksResp.checklist || []);
+        } catch (e) {
+          setTodayTasks([]);
+          setChecklist([]);
+        }
+      } else {
+        setTodayTasks([]);
+        setChecklist([]);
+      }
+
       // Calculate follow-up reminders from leads
-      const { leads } = await leadService.getLeads({ limit: 1000 });
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const weekEnd = new Date(today);
-      weekEnd.setDate(weekEnd.getDate() + 7);
+      try {
+        const { leads } = await leadService.getLeads({ limit: 1000 });
+        const now = new Date();
+        const today = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate()
+        );
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const weekEnd = new Date(today);
+        weekEnd.setDate(weekEnd.getDate() + 7);
 
-      const overdue = leads.filter(
-        (l) => l.next_followup && new Date(l.next_followup) < today
-      ).length;
-      const dueToday = leads.filter((l) => {
-        if (!l.next_followup) return false;
-        const followupDate = new Date(l.next_followup);
-        return followupDate >= today && followupDate < tomorrow;
-      }).length;
-      const dueTomorrow = leads.filter((l) => {
-        if (!l.next_followup) return false;
-        const followupDate = new Date(l.next_followup);
-        const dayAfterTomorrow = new Date(tomorrow);
-        dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
-        return followupDate >= tomorrow && followupDate < dayAfterTomorrow;
-      }).length;
-      const thisWeek = leads.filter((l) => {
-        if (!l.next_followup) return false;
-        const followupDate = new Date(l.next_followup);
-        return followupDate >= today && followupDate < weekEnd;
-      }).length;
+        const overdue = leads.filter(
+          (l) => l.next_followup && new Date(l.next_followup) < today
+        ).length;
+        const dueToday = leads.filter((l) => {
+          if (!l.next_followup) return false;
+          const followupDate = new Date(l.next_followup);
+          return followupDate >= today && followupDate < tomorrow;
+        }).length;
+        const dueTomorrow = leads.filter((l) => {
+          if (!l.next_followup) return false;
+          const followupDate = new Date(l.next_followup);
+          const dayAfterTomorrow = new Date(tomorrow);
+          dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 1);
+          return followupDate >= tomorrow && followupDate < dayAfterTomorrow;
+        }).length;
+        const thisWeek = leads.filter((l) => {
+          if (!l.next_followup) return false;
+          const followupDate = new Date(l.next_followup);
+          return followupDate >= today && followupDate < weekEnd;
+        }).length;
 
-      setFollowUpReminders({
-        overdue,
-        dueToday,
-        dueTomorrow,
-        thisWeek,
-      });
+        setFollowUpReminders({
+          overdue,
+          dueToday,
+          dueTomorrow,
+          thisWeek,
+        });
+      } catch (error: any) {
+        // If it's a permission error, just set empty array
+        if (
+          error.message?.includes("Access denied") ||
+          error.message?.includes("403")
+        ) {
+          console.warn(
+            "No permission to access leads, skipping lead-based calculations"
+          );
+          // Set empty arrays or default values
+          setFollowUpReminders({
+            overdue: 0,
+            dueToday: 0,
+            dueTomorrow: 0,
+            thisWeek: 0,
+          });
+          return;
+        }
+        throw error; // Re-throw other errors
+      }
     } catch (error: any) {
       console.error("Error loading dashboard data:", error);
 
@@ -404,6 +461,50 @@ export const Dashboard: React.FC = () => {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Today's Tasks - hidden for admin to keep old behavior */}
+          {(userRole || "").toLowerCase() !== "admin" && (
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Today's Tasks
+                </h3>
+                <div className="text-xs text-gray-500">
+                  {todayTasks.length} items
+                </div>
+              </div>
+              {todayTasks.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Nothing due today.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700 rounded-md border border-gray-200 dark:border-gray-700">
+                  {todayTasks.slice(0, 6).map((t) => (
+                    <li
+                      key={t.id}
+                      className="px-3 py-2 text-sm flex items-center justify-between"
+                    >
+                      <span className="truncate">{t.title}</span>
+                      <span className="ml-3 text-xs text-gray-500">
+                        {t.due?.toString().slice(0, 16)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {checklist.length > 0 && (
+                <div className="mt-3">
+                  <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Suggested Checklist
+                  </h4>
+                  <ul className="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
+                    {checklist.map((c) => (
+                      <li key={c.id}>{c.label}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <ActionGuard module="leads" action="create">
               <Button
@@ -591,22 +692,34 @@ export const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             {recentActivity.length > 0 ? (
-              <div className="space-y-4">
-                {recentActivity.map((activity, index) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full" />
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-900 dark:text-white">
-                        {activity.description}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        by {activity.user?.full_name} •{" "}
-                        {new Date(activity.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div className="space-y-4">
+                  {recentActivity
+                    .slice(recentOffset, recentOffset + recentPerPage)
+                    .map((activity, index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-900 dark:text-white">
+                            {activity.description}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            by {activity.user?.full_name} •{" "}
+                            {new Date(activity.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <Pagination
+                  page={recentPage}
+                  pageCount={recentPageCount}
+                  perPage={recentPerPage}
+                  total={recentActivity.length}
+                  onPageChange={(p) => setRecentPage(p)}
+                  compact
+                />
+              </>
             ) : (
               <div className="text-center py-8">
                 <Calendar className="h-8 w-8 text-gray-400 mx-auto mb-2" />

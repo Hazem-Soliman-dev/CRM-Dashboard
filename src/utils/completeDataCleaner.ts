@@ -35,7 +35,7 @@ export class CompleteDataCleaner {
       if ('indexedDB' in window) {
         const databases = await indexedDB.databases();
         for (const db of databases) {
-          indexedDB.deleteDatabase(db.name);
+          indexedDB.deleteDatabase(db.name || '');
         }
       }
       console.log('✅ IndexedDB cleared');
@@ -166,10 +166,10 @@ export class CompleteDataCleaner {
     
     const inputs = document.querySelectorAll('input, textarea, select');
     inputs.forEach(input => {
-      if (input.type === 'checkbox' || input.type === 'radio') {
+      if (input instanceof HTMLInputElement && (input.type === 'checkbox' || input.type === 'radio')) {
         input.checked = false;
       } else {
-        input.value = '';
+        (input as HTMLInputElement).value = '';
       }
     });
     
@@ -182,16 +182,16 @@ export class CompleteDataCleaner {
     console.log('🔄 Clearing application state...');
     
     // Clear global variables
-    if (window.appState) {
-      window.appState = {};
+    if ((window as any).appState) {
+      (window as any).appState = {};
     }
     
-    if (window.cachedData) {
-      window.cachedData = {};
+    if ((window as any).cachedData) {
+      (window as any).cachedData = {};
     }
     
-    if (window.userPreferences) {
-      window.userPreferences = {};
+    if ((window as any).userPreferences) {
+      (window as any).userPreferences = {};
     }
     
     // Clear any other global state
@@ -201,8 +201,8 @@ export class CompleteDataCleaner {
     ];
     
     globalStateKeys.forEach(key => {
-      if (window[key]) {
-        window[key] = {};
+      if ((window as any)[key]) {
+        (window as any)[key] = {};
       }
     });
     

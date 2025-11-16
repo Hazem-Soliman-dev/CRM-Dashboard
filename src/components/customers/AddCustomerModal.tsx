@@ -102,11 +102,10 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
         email: formData.email,
         phone: formData.phone,
         company: formData.company || "",
-        type: formData.type,
-        contact_method: formData.contactMethod,
-        status: formData.status,
-        assigned_staff_id: formData.assignedStaff ? parseInt(formData.assignedStaff.toString()) : null,
-        notes: formData.notes || ""
+        type: formData.type as "Individual" | "Corporate",
+        contact_method: formData.contactMethod as "Email" | "Phone" | "SMS",
+        assigned_staff_id: formData.assignedStaff ? formData.assignedStaff.toString() : undefined,
+        notes: formData.notes || undefined
       });
 
       // Reset form

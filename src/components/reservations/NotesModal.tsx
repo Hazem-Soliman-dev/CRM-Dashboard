@@ -58,12 +58,6 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
 
     setIsLoading(true);
     try {
-      const noteData = {
-        content: newNote,
-        type: noteType,
-        targetDepartment: noteType === 'interdepartmental' ? targetDepartment : null,
-        timestamp: new Date().toISOString()
-      };
 
       await onSave(newNote);
       setNewNote('');

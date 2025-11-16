@@ -10,6 +10,8 @@ import taskService, {
 import { useToastContext } from "../../contexts/ToastContext";
 import { ScheduleTaskModal } from "./ScheduleTaskModal";
 import { ViewTripModal } from "./ViewTripModal";
+import { usePagination } from "../../hooks/usePagination";
+import { Pagination } from "../ui/Pagination";
 
 const statusBadgeStyles: Record<TaskStatus, string> = {
   Pending:
@@ -53,6 +55,11 @@ export const TasksPage: React.FC = () => {
   const [isViewTripModalOpen, setIsViewTripModalOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<any>(null);
   const { error: showError, success: showSuccess } = useToastContext();
+  const [total, setTotal] = useState(0);
+  const { page, perPage, offset, pageCount, setPage, reset } = usePagination({
+    perPage: 10,
+    total,
+  });
 
   const loadTasks = useCallback(async () => {
     try {
@@ -106,6 +113,16 @@ export const TasksPage: React.FC = () => {
     });
   }, [statusFilter, priorityFilter, tasks]);
 
+  useEffect(() => {
+    reset();
+  }, [statusFilter, priorityFilter, reset]);
+
+  useEffect(() => {
+    setTotal(filteredTasks.length);
+  }, [filteredTasks.length]);
+
+  const visibleTasks = filteredTasks.slice(offset, offset + perPage);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -120,7 +137,6 @@ export const TasksPage: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3">
           <Select
-            label="Status"
             value={statusFilter}
             onChange={(event) =>
               setStatusFilter(event.target.value as "All" | TaskStatus)
@@ -134,7 +150,6 @@ export const TasksPage: React.FC = () => {
           </Select>
 
           <Select
-            label="Priority"
             value={priorityFilter}
             onChange={(event) =>
               setPriorityFilter(
@@ -167,7 +182,7 @@ export const TasksPage: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filteredTasks.map((task) => (
+        {visibleTasks.map((task) => (
           <Card
             key={task.id}
             className="border border-gray-200 dark:border-gray-700"
@@ -220,7 +235,7 @@ export const TasksPage: React.FC = () => {
                 </p>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-start gap-2 pt-2">
                 {task.trip && (
                   <Button 
                     size="sm" 
@@ -253,6 +268,14 @@ export const TasksPage: React.FC = () => {
           </Card>
         )}
       </div>
+      <Pagination
+        page={page}
+        pageCount={pageCount}
+        perPage={perPage}
+        total={total}
+        onPageChange={(p) => setPage(p)}
+        compact
+      />
 
       {/* Modals */}
       <ScheduleTaskModal

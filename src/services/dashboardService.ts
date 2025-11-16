@@ -78,6 +78,11 @@ const dashboardService = {
   getPerformanceMetrics: async (): Promise<PerformanceMetrics> => {
     const response = await api.get('/dashboard/performance');
     return response.data.data;
+  },
+
+  getTodayTasks: async (): Promise<{ tasks: any[]; checklist: any[] }> => {
+    const response = await api.get('/dashboard/tasks/today');
+    return response.data.data;
   }
 };
 

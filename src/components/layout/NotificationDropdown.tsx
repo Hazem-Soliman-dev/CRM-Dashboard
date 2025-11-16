@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Calendar, User, DollarSign, AlertTriangle, ClipboardCheck } from 'lucide-react';
+import { Bell, Calendar, User, DollarSign, AlertTriangle, ClipboardCheck, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatDateTime } from '../../utils/format';
 import { useNotificationContext } from '../../contexts/NotificationContext';
@@ -35,6 +35,8 @@ export const NotificationDropdown: React.FC = () => {
         return <AlertTriangle className="h-4 w-4 text-red-500" />;
       case 'task':
         return <ClipboardCheck className="h-4 w-4 text-orange-500" />;
+      case 'attendance':
+        return <Clock className="h-4 w-4 text-indigo-500" />;
       default:
         return <Bell className="h-4 w-4 text-gray-500" />;
     }
@@ -45,6 +47,9 @@ export const NotificationDropdown: React.FC = () => {
     
     // Navigate to related page based on notification type
     switch (notification.type) {
+      case 'attendance':
+        navigate('/attendance');
+        break;
       case 'lead':
         navigate('/leads');
         break;

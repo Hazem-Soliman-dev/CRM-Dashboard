@@ -98,23 +98,23 @@ export const AddLeadModal: React.FC<AddLeadModalProps> = ({ isOpen, onClose, onS
         company: '',
         source: 'Website',
         type: 'B2C',
-        staff: 'Sarah Johnson',
+        agent_id: '',
         status: 'New',
         notes: ''
       });
       setErrors({});
       onClose();
     } catch (error) {
-      console.error('Error saving lead:', error);
+      console.error("Error saving lead:", error);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      setErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 

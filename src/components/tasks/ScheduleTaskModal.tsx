@@ -42,7 +42,7 @@ export const ScheduleTaskModal: React.FC<ScheduleTaskModalProps> = ({ isOpen, on
         try {
           const [usersRes, tripsRes] = await Promise.all([
             userService.getAllUsers({ limit: 100 }),
-            operationsService.getTrips({ limit: 100 })
+            operationsService.getTrips({})
           ]);
           setUsers(usersRes.users || []);
           setTrips(tripsRes || []);

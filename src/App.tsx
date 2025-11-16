@@ -24,6 +24,8 @@ import { FinancePage } from "./components/finance/FinancePage";
 import { ReportsPage } from "./components/reports/ReportsPage";
 import { UsersPage } from "./components/users/UsersPage";
 import { AttendancePage } from "./components/attendance/AttendancePage";
+import InvoicePrint from "./pages/print/InvoicePrint";
+import ReportPrint from "./pages/print/ReportPrint";
 
 function App() {
   return (
@@ -32,6 +34,9 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            {/* Public print routes for headless PDF rendering */}
+            <Route path="/print/invoice/:id" element={<InvoicePrint />} />
+            <Route path="/print/report/:id" element={<ReportPrint />} />
             <Route
               path="/"
               element={
@@ -50,9 +55,9 @@ function App() {
                 }
               />
               <Route
-                path="activities"
+                path="operations"
                 element={
-                  <ProtectedRoute requiredModule="activities">
+                  <ProtectedRoute requiredModule="operations">
                     <CRMActivitiesPage />
                   </ProtectedRoute>
                 }
@@ -74,9 +79,9 @@ function App() {
                 }
               />
               <Route
-                path="listings"
+                path="reservations"
                 element={
-                  <ProtectedRoute requiredModule="listings">
+                  <ProtectedRoute requiredModule="reservations">
                     <CRMListingsPage />
                   </ProtectedRoute>
                 }
@@ -138,9 +143,9 @@ function App() {
                 }
               />
               <Route
-                path="finance"
+                path="accounting"
                 element={
-                  <ProtectedRoute requiredModule="finance">
+                  <ProtectedRoute requiredModule="accounting">
                     <FinancePage />
                   </ProtectedRoute>
                 }

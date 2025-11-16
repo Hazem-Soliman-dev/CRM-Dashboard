@@ -2,42 +2,71 @@ import React, { useState, useEffect } from 'react';
 import { LogIn, LogOut } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useToastContext } from '../../contexts/ToastContext';
+import attendanceService from '../../services/attendanceService';
+import { useNotificationContext } from '../../contexts/NotificationContext';
 
 export const ClockInOutWidget: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [clockInTime, setClockInTime] = useState<string | null>(null);
   const toast = useToastContext();
+  const { addNotification } = useNotificationContext();
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
 
-    // Check if user is already clocked in
-    const storedClockIn = localStorage.getItem('clockInTime');
-    if (storedClockIn) {
-      setClockInTime(storedClockIn);
-    }
+    // Initialize from today's attendance so header reflects Attendance page state
+    (async () => {
+      try {
+        const today = await attendanceService.getTodayAttendance();
+        if (today && today.clock_in && !today.clock_out) {
+          setClockInTime(today.clock_in);
+        }
+      } catch {
+        // Ignore init errors silently to keep header lightweight
+      }
+    })();
 
     return () => clearInterval(timer);
   }, []);
 
-  const handleClockIn = () => {
-    const now = new Date().toISOString();
-    setClockInTime(now);
-    localStorage.setItem('clockInTime', now);
-    toast.success('Clocked In', `Welcome! Clocked in at ${new Date().toLocaleTimeString()}`);
+  const handleClockIn = async () => {
+    try {
+      const record = await attendanceService.clockIn();
+      const effectiveClockIn = record.clock_in || new Date().toISOString();
+      setClockInTime(effectiveClockIn);
+      toast.success('Clocked In', `Welcome! Clocked in at ${new Date(effectiveClockIn).toLocaleTimeString()}`);
+      // Notification
+      await addNotification({
+        type: 'attendance',
+        title: 'Clocked In',
+        message: `You clocked in at ${new Date(effectiveClockIn).toLocaleTimeString()}`,
+        entityType: 'attendance'
+      });
+    } catch (error: any) {
+      toast.error('Failed to Clock In', error?.response?.data?.message || error?.message || 'Unknown error');
+    }
   };
 
-  const handleClockOut = () => {
-    if (window.confirm('Are you sure you want to clock out?')) {
-      const clockInTimeStamp = clockInTime ? new Date(clockInTime) : new Date();
+  const handleClockOut = async () => {
+    if (!window.confirm('Are you sure you want to clock out?')) return;
+    try {
+      const record = await attendanceService.clockOut();
       const now = new Date();
-      const hoursWorked = ((now.getTime() - clockInTimeStamp.getTime()) / (1000 * 60 * 60)).toFixed(1);
-      
+      const start = clockInTime ? new Date(clockInTime) : (record.clock_in ? new Date(record.clock_in) : now);
+      const hoursWorked = ((now.getTime() - start.getTime()) / (1000 * 60 * 60)).toFixed(1);
       setClockInTime(null);
-      localStorage.removeItem('clockInTime');
       toast.success('Clocked Out', `Goodbye! You worked ${hoursWorked} hours today.`);
+      // Notification
+      await addNotification({
+        type: 'attendance',
+        title: 'Clocked Out',
+        message: `You clocked out at ${now.toLocaleTimeString()} (Worked ${hoursWorked}h)`,
+        entityType: 'attendance'
+      });
+    } catch (error: any) {
+      toast.error('Failed to Clock Out', error?.response?.data?.message || error?.message || 'Unknown error');
     }
   };
 

@@ -1,11 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
-import authService, { User, LoginData, RegisterData } from '../services/authService';
-import { getErrorMessage } from '../types/errors';
+import { useEffect, useState, useCallback } from "react";
+import authService, {
+  User,
+  LoginData,
+  RegisterData,
+} from "../services/authService";
+import { getErrorMessage } from "../types/errors";
 
 // Helper function to decode JWT token and get expiration
 const getTokenExpiration = (token: string): number | null => {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const payload = JSON.parse(atob(token.split(".")[1]));
     return payload.exp ? payload.exp * 1000 : null; // Convert to milliseconds
   } catch {
     return null;
@@ -13,12 +17,15 @@ const getTokenExpiration = (token: string): number | null => {
 };
 
 // Check if token is expired or will expire soon (within 5 minutes)
-const isTokenExpiringSoon = (token: string, bufferMinutes: number = 5): boolean => {
+const isTokenExpiringSoon = (
+  token: string,
+  bufferMinutes: number = 5
+): boolean => {
   const expiration = getTokenExpiration(token);
   if (!expiration) return true; // If we can't parse, assume expired
-  
+
   const bufferMs = bufferMinutes * 60 * 1000;
-  return Date.now() >= (expiration - bufferMs);
+  return Date.now() >= expiration - bufferMs;
 };
 
 // Check if token is expired
@@ -39,7 +46,7 @@ export const useAuth = () => {
       setUser(currentUser);
       return currentUser;
     } catch (error) {
-      console.error('Failed to refresh user data:', error);
+      console.error("Failed to refresh user data:", error);
       // If refresh fails, clear stored data
       authService.logout();
       setUser(null);
@@ -58,7 +65,7 @@ export const useAuth = () => {
         await authService.refreshToken();
         return true;
       } catch (error) {
-        console.error('Failed to refresh token:', error);
+        console.error("Failed to refresh token:", error);
         return false;
       }
     }
@@ -69,7 +76,7 @@ export const useAuth = () => {
     const initializeAuth = async () => {
       const storedUser = authService.getStoredUser();
       const token = authService.getStoredToken();
-      
+
       if (storedUser && token) {
         // Check if token is expired
         if (isTokenExpired(token)) {
@@ -85,16 +92,16 @@ export const useAuth = () => {
         } else {
           // Token is valid, use stored user
           setUser(storedUser);
-          
+
           // Refresh token proactively if needed
           await refreshTokenIfNeeded();
-          
+
           // Optionally refresh user data to ensure it's up to date
           // Uncomment if you want to always fetch fresh user data on mount
-          // await refreshUserData();
+          await refreshUserData();
         }
       }
-      
+
       setLoading(false);
     };
 
@@ -113,23 +120,23 @@ export const useAuth = () => {
       const loginData: LoginData = { email, password };
       const { user: apiUser } = await authService.login(loginData);
       setUser(apiUser);
-      
-      return { 
-        data: { 
-          user: { 
-            email: apiUser.email, 
-            user_metadata: { 
-              full_name: apiUser.full_name, 
-              role: apiUser.role 
-            } 
-          } 
-        }, 
-        error: null 
+
+      return {
+        data: {
+          user: {
+            email: apiUser.email,
+            user_metadata: {
+              full_name: apiUser.full_name,
+              role: apiUser.role,
+            },
+          },
+        },
+        error: null,
       };
     } catch (error: unknown) {
-      return { 
-        data: null, 
-        error: { message: getErrorMessage(error) || 'Login failed' } 
+      return {
+        data: null,
+        error: { message: getErrorMessage(error) || "Login failed" },
       };
     }
   };
@@ -138,11 +145,11 @@ export const useAuth = () => {
     try {
       await authService.logout();
     } catch (error) {
-      console.warn('Logout error:', error);
+      console.warn("Logout error:", error);
     }
-    
+
     setUser(null);
-    
+
     return { error: null };
   };
 
@@ -150,35 +157,37 @@ export const useAuth = () => {
     try {
       const { user: apiUser } = await authService.register(registerData);
       setUser(apiUser);
-      
-      return { 
-        data: { 
-          user: { 
-            email: apiUser.email, 
-            user_metadata: { 
-              full_name: apiUser.full_name, 
-              role: apiUser.role 
-            } 
-          } 
-        }, 
-        error: null 
+
+      return {
+        data: {
+          user: {
+            email: apiUser.email,
+            user_metadata: {
+              full_name: apiUser.full_name,
+              role: apiUser.role,
+            },
+          },
+        },
+        error: null,
       };
     } catch (error: unknown) {
-      return { 
-        data: null, 
-        error: { message: getErrorMessage(error) || 'Registration failed' } 
+      return {
+        data: null,
+        error: { message: getErrorMessage(error) || "Registration failed" },
       };
     }
   };
 
   const getCurrentUser = () => {
-    return user ? {
-      email: user.email,
-      user_metadata: {
-        full_name: user.full_name,
-        role: user.role
-      }
-    } : null;
+    return user
+      ? {
+          email: user.email,
+          user_metadata: {
+            full_name: user.full_name,
+            role: user.role,
+          },
+        }
+      : null;
   };
 
   return {
@@ -187,8 +196,8 @@ export const useAuth = () => {
     signIn,
     signOut,
     register,
-    userRole: user?.role || 'customer',
+    userRole: user?.role || "customer",
     refreshUserData,
-    refreshTokenIfNeeded
+    refreshTokenIfNeeded,
   };
 };

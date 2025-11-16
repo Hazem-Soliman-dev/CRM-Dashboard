@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Save, FileText } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { formatDate } from '../../utils/format';
+import { usePagination } from '../../hooks/usePagination';
+import { Pagination } from '../ui/Pagination';
 
 interface NotesModalProps {
   isOpen: boolean;
@@ -37,6 +39,16 @@ const mockExistingNotes = [
 export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave, caseData }) => {
   const [newNote, setNewNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [totalNotes, setTotalNotes] = useState(0);
+  const { page, perPage, offset, pageCount, setPage } = usePagination({
+    perPage: 3,
+    total: totalNotes
+  });
+
+  // Effects must be declared before any conditional returns to preserve hook order
+  React.useEffect(() => {
+    setTotalNotes(mockExistingNotes.length);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +110,7 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
                 Existing Notes
               </h3>
               <div className="space-y-4 max-h-60 overflow-y-auto">
-                {mockExistingNotes.map((note) => (
+                {mockExistingNotes.slice(offset, offset + perPage).map((note) => (
                   <div key={note.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center space-x-2">
@@ -121,6 +133,14 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
                   </div>
                 ))}
               </div>
+              <Pagination
+                page={page}
+                pageCount={pageCount}
+                perPage={perPage}
+                total={totalNotes}
+                onPageChange={(p) => setPage(p)}
+                compact
+              />
             </div>
 
             {/* Add New Note */}

@@ -25,6 +25,8 @@ export interface PropertyFilters {
   type?: Property['type'] | 'All';
   ownerId?: string;
   search?: string;
+  page?: number;
+  limit?: number;
 }
 
 const propertyService = {
