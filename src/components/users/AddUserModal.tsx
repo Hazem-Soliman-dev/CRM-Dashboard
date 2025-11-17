@@ -3,8 +3,17 @@ import { X, Save } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
-import roleService from '../../services/roleService';
 import departmentService from '../../services/departmentService';
+
+// Valid roles that match backend expectations
+const VALID_ROLES = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'reservation', label: 'Reservation' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'operations', label: 'Operations' },
+];
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -13,7 +22,6 @@ interface AddUserModalProps {
 }
 
 export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onSave }) => {
-  const [roles, setRoles] = React.useState<any[]>([]);
   const [departments, setDepartments] = React.useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -30,21 +38,18 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
     if (isOpen) {
       const loadData = async () => {
         try {
-          const [rolesRes, departmentsRes] = await Promise.all([
-            roleService.getAllRoles(),
-            departmentService.getAllDepartments()
-          ]);
-          setRoles(rolesRes.roles || []);
+          const departmentsRes = await departmentService.getAllDepartments();
           setDepartments(departmentsRes.departments || []);
 
-          if (rolesRes.roles?.length > 0) {
-            setFormData(prev => ({ ...prev, role: rolesRes.roles[0].id }));
+          // Set default role to first valid role
+          if (VALID_ROLES.length > 0) {
+            setFormData(prev => ({ ...prev, role: VALID_ROLES[0].value }));
           }
           if (departmentsRes.departments?.length > 0) {
             setFormData(prev => ({ ...prev, department: departmentsRes.departments[0].id }));
           }
         } catch (error) {
-          console.error('Failed to load roles and departments', error);
+          console.error('Failed to load departments', error);
         }
       };
       loadData();
@@ -88,7 +93,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
         name: '',
         email: '',
         phone: '',
-        role: roles.length > 0 ? roles[0].id : '',
+        role: VALID_ROLES.length > 0 ? VALID_ROLES[0].value : '',
         department: departments.length > 0 ? departments[0].id : '',
         status: 'Active'
       });
@@ -159,8 +164,8 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
                 value={formData.role}
                 onChange={(e) => handleInputChange('role', e.target.value)}
               >
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
+                {VALID_ROLES.map(role => (
+                  <option key={role.value} value={role.value}>{role.label}</option>
                 ))}
               </Select>
 

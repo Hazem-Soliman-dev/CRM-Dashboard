@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { X, Save, FileText } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { formatDate } from '../../utils/format';
 import { usePagination } from '../../hooks/usePagination';
 import { Pagination } from '../ui/Pagination';
+import { useAuth } from '../../hooks/useAuth';
 
 interface NotesModalProps {
   isOpen: boolean;
@@ -12,43 +13,95 @@ interface NotesModalProps {
   caseData: any;
 }
 
-const mockExistingNotes = [
-  {
-    id: 1,
-    content: 'Customer prefers morning flights and 4-star hotels. Budget is flexible.',
-    author: 'Sarah Johnson',
-    timestamp: '2025-01-15T10:30:00Z',
-    type: 'internal'
-  },
-  {
-    id: 2,
-    content: 'Discussed package options. Customer interested in Nile cruise extension.',
-    author: 'Mike Chen',
-    timestamp: '2025-01-14T16:45:00Z',
-    type: 'internal'
-  },
-  {
-    id: 3,
-    content: 'Customer requested vegetarian meal options for all flights.',
-    author: 'Sarah Johnson',
-    timestamp: '2025-01-13T09:15:00Z',
-    type: 'requirement'
+// Parse notes from description field
+// Format: "timestamp: note content\n\ntimestamp: note content"
+const parseNotesFromDescription = (description: string | null | undefined): Array<{
+  id: number;
+  content: string;
+  author: string;
+  timestamp: string;
+  type: 'internal';
+}> => {
+  if (!description || !description.trim()) {
+    return [];
   }
-];
+
+  // Split by double newlines to separate notes
+  const noteBlocks = description.split(/\n\n+/).filter(block => block.trim());
+  const notes: Array<{
+    id: number;
+    content: string;
+    author: string;
+    timestamp: string;
+    type: 'internal';
+  }> = [];
+
+  noteBlocks.forEach((block, index) => {
+    const trimmed = block.trim();
+    if (!trimmed) return;
+
+    // Try to extract timestamp from format like "1/15/2025, 10:30:00 AM: note content"
+    const timestampMatch = trimmed.match(/^([^:]+):\s*(.+)$/);
+    if (timestampMatch) {
+      const [, timestampStr, content] = timestampMatch;
+      // Try to parse the timestamp
+      let timestamp = new Date().toISOString();
+      try {
+        const parsed = new Date(timestampStr);
+        if (!isNaN(parsed.getTime())) {
+          timestamp = parsed.toISOString();
+        }
+      } catch (e) {
+        // Use current time if parsing fails
+      }
+
+      notes.push({
+        id: index + 1,
+        content: content.trim(),
+        author: 'System', // Will be updated if we have user info
+        timestamp,
+        type: 'internal'
+      });
+    } else {
+      // If no timestamp format, treat entire block as a note
+      notes.push({
+        id: index + 1,
+        content: trimmed,
+        author: 'System',
+        timestamp: new Date().toISOString(),
+        type: 'internal'
+      });
+    }
+  });
+
+  // Sort by timestamp descending (newest first)
+  return notes.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+};
 
 export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave, caseData }) => {
   const [newNote, setNewNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [totalNotes, setTotalNotes] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { user } = useAuth();
+
+  // Parse notes from caseData description
+  // Use refreshKey to force re-parsing after note is added
+  const existingNotes = useMemo(() => {
+    const description = caseData?.description || caseData?.notes || '';
+    return parseNotesFromDescription(description);
+  }, [caseData?.description, caseData?.notes, refreshKey]);
+
   const { page, perPage, offset, pageCount, setPage } = usePagination({
-    perPage: 3,
-    total: totalNotes
+    perPage: 10,
+    total: existingNotes.length
   });
 
-  // Effects must be declared before any conditional returns to preserve hook order
+  const visibleNotes = existingNotes.slice(offset, offset + perPage);
+
+  // Reset to first page when notes change
   React.useEffect(() => {
-    setTotalNotes(mockExistingNotes.length);
-  }, []);
+    setPage(1);
+  }, [existingNotes.length, setPage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,13 +114,30 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
     try {
       await onSave(newNote);
       setNewNote('');
-      onClose();
+      // Force refresh of notes by updating refreshKey
+      // The parent component will update caseData, which will trigger re-parsing
+      setRefreshKey(prev => prev + 1);
+      // Scroll to top to show the new note after a brief delay to allow DOM update
+      setTimeout(() => {
+        const notesContainer = document.querySelector('.space-y-4.max-h-60');
+        if (notesContainer) {
+          notesContainer.scrollTop = 0;
+        }
+      }, 100);
     } catch (error) {
       console.error('Error saving note:', error);
+      // Error handling is done in parent component
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Update refreshKey when caseData changes to ensure notes are re-parsed
+  React.useEffect(() => {
+    if (isOpen && caseData) {
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [isOpen, caseData?.description, caseData?.notes]);
 
   if (!isOpen || !caseData) return null;
 
@@ -107,40 +177,51 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
             {/* Existing Notes */}
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Existing Notes
+                Existing Notes ({existingNotes.length})
               </h3>
-              <div className="space-y-4 max-h-60 overflow-y-auto">
-                {mockExistingNotes.slice(offset, offset + perPage).map((note) => (
-                  <div key={note.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          note.type === 'internal' 
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300'
-                        }`}>
-                          {note.type}
-                        </span>
+              {existingNotes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No notes yet. Add your first note below.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-4 max-h-60 overflow-y-auto">
+                    {visibleNotes.map((note) => (
+                      <div key={note.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              note.type === 'internal' 
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300'
+                            }`}>
+                              {note.type}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatDate(note.timestamp)}
+                          </div>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-300 mb-2 whitespace-pre-wrap">{note.content}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          by {note.author}
+                        </p>
                       </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {formatDate(note.timestamp)}
-                      </div>
-                    </div>
-                    <p className="text-gray-700 dark:text-gray-300 mb-2">{note.content}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      by {note.author}
-                    </p>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <Pagination
-                page={page}
-                pageCount={pageCount}
-                perPage={perPage}
-                total={totalNotes}
-                onPageChange={(p) => setPage(p)}
-                compact
-              />
+                  {existingNotes.length > perPage && (
+                    <Pagination
+                      page={page}
+                      pageCount={pageCount}
+                      perPage={perPage}
+                      total={existingNotes.length}
+                      onPageChange={(p) => setPage(p)}
+                      compact
+                    />
+                  )}
+                </>
+              )}
             </div>
 
             {/* Add New Note */}

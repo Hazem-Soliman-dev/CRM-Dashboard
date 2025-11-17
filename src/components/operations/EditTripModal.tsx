@@ -4,6 +4,7 @@ import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
 import { OperationsTrip, UpdateTripPayload, TripStatus } from '../../services/operationsService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface EditTripModalProps {
   isOpen: boolean;
@@ -18,6 +19,7 @@ export const EditTripModal: React.FC<EditTripModalProps> = ({
   onSave,
   trip
 }) => {
+  const { error: showError } = useToastContext();
   const [formData, setFormData] = useState<UpdateTripPayload>({
     customerName: '',
     customerCount: 1,
@@ -86,13 +88,26 @@ export const EditTripModal: React.FC<EditTripModalProps> = ({
         destinations: destinationsInput
           ? destinationsInput.split(',').map(d => d.trim()).filter(d => d.length > 0)
           : [],
-        startDate: formData.startDate || undefined,
-        endDate: formData.endDate || undefined
+        startDate: formData.startDate && formData.startDate.trim() ? formData.startDate : undefined,
+        endDate: formData.endDate && formData.endDate.trim() ? formData.endDate : undefined,
+        bookingReference: formData.bookingReference || undefined,
+        itinerary: formData.itinerary || undefined,
+        duration: formData.duration || undefined,
+        assignedGuide: formData.assignedGuide || undefined,
+        assignedDriver: formData.assignedDriver || undefined,
+        transport: formData.transport || undefined,
+        transportDetails: formData.transportDetails || undefined,
+        specialRequests: formData.specialRequests || undefined,
+        notes: formData.notes || undefined
       };
       await onSave(trip.id, payload);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating trip:', error);
+      showError(
+        'Error',
+        error.response?.data?.message || 'Failed to update trip. Please try again.'
+      );
     } finally {
       setIsLoading(false);
     }

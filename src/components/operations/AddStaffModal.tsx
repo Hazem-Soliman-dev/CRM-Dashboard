@@ -24,7 +24,7 @@ const departments = ['Operations', 'Tours', 'Transportation', 'Marine', 'Desert'
 
 export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    name: '',
+    full_name: '',
     type: 'Guide',
     department: 'Operations',
     phone: '',
@@ -39,8 +39,8 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
+    if (!formData.full_name.trim()) {
+      newErrors.full_name = 'Full name is required';
     }
 
     if (!formData.phone.trim()) {
@@ -70,7 +70,7 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
       
       // Reset form
       setFormData({
-        name: '',
+        full_name: '',
         type: 'Guide',
         department: 'Operations',
         phone: '',
@@ -121,9 +121,9 @@ export const AddStaffModal: React.FC<AddStaffModalProps> = ({ isOpen, onClose, o
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input
                 label="Full Name *"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                error={errors.name}
+                value={formData.full_name}
+                onChange={(e) => handleInputChange('full_name', e.target.value)}
+                error={errors.full_name}
                 placeholder="Enter full name"
               />
 

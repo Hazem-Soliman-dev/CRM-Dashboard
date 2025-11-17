@@ -3,17 +3,12 @@ import api from './api';
 const roleService = {
   // Get all roles
   getAllRoles: async (params = {}) => {
-    // const response = await api.get('/roles', { params });
-    // return response.data;
-    console.warn("Returning mock role data. Endpoint does not exist.");
-    return Promise.resolve({
-      roles: [
-        { id: "admin", name: "Admin" },
-        { id: "manager", name: "Manager" },
-        { id: "agent", name: "Agent" },
-        { id: "customer", name: "Customer" },
-      ],
-    });
+    const response = await api.get('/roles', { params });
+    // Backend returns { success: true, data: [...] }
+    // Transform to { roles: [...] } to match what modals expect
+    return {
+      roles: response.data.data || []
+    };
   },
 
   // Get a single role by ID

@@ -249,15 +249,51 @@ export const SalesPage: React.FC = () => {
 
   const handleUpdateCase = async () => {
     try {
-      // Close modal first to prevent re-renders with old data
-      setIsEditModalOpen(false);
-      // Clear selected case
-      setSelectedCase(null);
-      // Refresh data from API
+      // Refresh data from API first to get latest data
       await loadData();
+      
+      // Close modal after data is refreshed
+      setIsEditModalOpen(false);
+      
+      // Update selectedCase if it's still open
+      if (selectedCase) {
+        const updatedCases = await salesService.getAllSalesCases({});
+        const updatedCase = updatedCases.cases.find((c: any) => c.id === selectedCase.id);
+        if (updatedCase) {
+          // Map the updated case to match our format
+          const mappedCase = {
+            id: updatedCase.id,
+            displayId: updatedCase.case_id || updatedCase.id,
+            case_id: updatedCase.case_id || updatedCase.id,
+            customer_id: updatedCase.customer_id,
+            customer: updatedCase.customer?.name || "Unknown Customer",
+            customerEmail: updatedCase.customer?.email || "",
+            customerPhone: updatedCase.customer?.phone || "",
+            type: updatedCase.case_type || "B2C",
+            status: updatedCase.status || "Open",
+            quotationStatus: updatedCase.quotation_status || "Draft",
+            value: updatedCase.value || 0,
+            probability: updatedCase.probability || 0,
+            expected_close_date: updatedCase.expected_close_date || "",
+            assigned_to: updatedCase.assigned_to,
+            assignedAgent: updatedCase.assigned_user?.full_name || "Unassigned",
+            lastActivity: updatedCase.updated_at ? formatDate(updatedCase.updated_at) : "N/A",
+            notes: updatedCase.description || "",
+            description: updatedCase.description || "",
+            createdAt: updatedCase.created_at,
+            _original: updatedCase,
+          };
+          setSelectedCase(mappedCase);
+        }
+      } else {
+        // Clear selected case if modal was closed
+        setSelectedCase(null);
+      }
+      
+      toast.success("Case Updated", "Sales case has been updated successfully.");
     } catch (error: any) {
       console.error("Error updating case:", error);
-      toast.error("Error", "Failed to update case");
+      toast.error("Error", error.response?.data?.message || "Failed to update case");
     }
   };
 
@@ -325,16 +361,68 @@ export const SalesPage: React.FC = () => {
     if (!selectedCase) return;
 
     try {
-      const currentDescription = selectedCase.notes || "";
+      // Get the current description from the database by fetching the latest case data
+      let currentDescription = "";
+      try {
+        const latestCase = await salesService.getSalesCaseById(selectedCase.id);
+        currentDescription = latestCase.description || "";
+      } catch (fetchError) {
+        // If fetch fails, use the cached description
+        currentDescription = selectedCase.description || selectedCase.notes || "";
+      }
+
+      // Format: timestamp: note content
+      const timestamp = new Date().toLocaleString();
       const updatedDescription = currentDescription
-        ? `${currentDescription}\n\n${new Date().toLocaleString()}: ${note}`
-        : `${new Date().toLocaleString()}: ${note}`;
+        ? `${currentDescription}\n\n${timestamp}: ${note}`
+        : `${timestamp}: ${note}`;
 
       await salesService.updateSalesCase(selectedCase.id, {
         description: updatedDescription,
       });
 
+      // Reload data to get the updated case
       await loadData();
+      
+      // Fetch the updated case directly to get latest data
+      try {
+        const updatedCase = await salesService.getSalesCaseById(selectedCase.id);
+        if (updatedCase) {
+          // Map the updated case to match our format
+          const mappedCase = {
+            id: updatedCase.id,
+            displayId: updatedCase.case_id || updatedCase.id,
+            case_id: updatedCase.case_id || updatedCase.id,
+            customer_id: updatedCase.customer_id,
+            customer: updatedCase.customer?.name || "Unknown Customer",
+            customerEmail: updatedCase.customer?.email || "",
+            customerPhone: updatedCase.customer?.phone || "",
+            type: updatedCase.case_type || "B2C",
+            status: updatedCase.status || "Open",
+            quotationStatus: updatedCase.quotation_status || "Draft",
+            value: updatedCase.value || 0,
+            probability: updatedCase.probability || 0,
+            expected_close_date: updatedCase.expected_close_date || "",
+            assigned_to: updatedCase.assigned_to,
+            assignedAgent: updatedCase.assigned_user?.full_name || "Unassigned",
+            lastActivity: updatedCase.updated_at ? formatDate(updatedCase.updated_at) : "N/A",
+            notes: updatedCase.description || "",
+            description: updatedCase.description || "",
+            createdAt: updatedCase.created_at,
+            _original: updatedCase,
+          };
+          setSelectedCase(mappedCase);
+        }
+      } catch (fetchError) {
+        console.warn("Could not fetch updated case, using cached data");
+        // Fallback to updating with what we know
+        setSelectedCase({
+          ...selectedCase,
+          description: updatedDescription,
+          notes: updatedDescription,
+        });
+      }
+
       toast.success(
         "Note Added",
         "Note has been added to the sales case successfully."
@@ -345,6 +433,7 @@ export const SalesPage: React.FC = () => {
         "Failed to add note",
         error.response?.data?.message || error.message
       );
+      throw error; // Re-throw so modal can handle it
     }
   };
 

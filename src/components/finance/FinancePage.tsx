@@ -140,8 +140,11 @@ export const FinancePage: React.FC = () => {
         const profitMargin = totalAmount > 0 ? (profit / totalAmount) * 100 : 0;
 
         return {
-          id: reservation.reservation_id || reservation.id,
-          customer: reservation.customer?.name || "Unknown Customer",
+          id: reservation.id, // Use database ID for operations
+          reservation_id: reservation.reservation_id || reservation.id, // Display ID
+          customer_id: reservation.customer_id,
+          customer: reservation.customer || { id: reservation.customer_id, name: reservation.customer?.name || "Unknown Customer" },
+          customerName: reservation.customer?.name || "Unknown Customer",
           tripItem: `${reservation.service_type}: ${reservation.destination}`,
           destination: reservation.destination,
           totalAmount,
@@ -301,21 +304,8 @@ export const FinancePage: React.FC = () => {
       return;
     }
 
-    setFinanceData((prev) =>
-      prev.map((booking) =>
-        booking.id === invoiceData.bookingId
-          ? {
-              ...booking,
-              invoiceStatus: "Issued",
-              invoiceDate: new Date().toISOString(),
-            }
-          : booking
-      )
-    );
-    toast.success(
-      "Invoice Issued",
-      "Invoice has been generated and sent to customer."
-    );
+    // The invoice is already created by the modal, just reload the data
+    await loadFinanceData();
   };
 
   const handleSupplierPayment = (bookingId: string) => {
@@ -404,8 +394,8 @@ export const FinancePage: React.FC = () => {
     }
 
     const matchesSearch =
-      booking.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      booking.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (booking.customerName || booking.customer?.name || booking.customer || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (booking.reservation_id || booking.id || "").toString().toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All Status" || booking.paymentStatus === statusFilter;
     const matchesAgent =
@@ -742,12 +732,12 @@ export const FinancePage: React.FC = () => {
                           <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />
                         )}
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {booking.id}
+                          {booking.reservation_id || booking.id}
                         </span>
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {booking.customer}
+                      {booking.customerName || booking.customer?.name || booking.customer}
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-900 dark:text-white max-w-xs">
@@ -943,6 +933,13 @@ export const FinancePage: React.FC = () => {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         data={filteredData}
+        filters={{
+          statusFilter,
+          agentFilter,
+          supplierFilter,
+          dateFromFilter,
+          dateToFilter
+        }}
       />
 
       <ActionGuard module="finance" action="update">

@@ -115,13 +115,22 @@ export const ReservationsPage: React.FC = () => {
       // Map backend data to frontend format
       const mappedReservations = reservationRes.reservations.map(
         (res: any) => ({
-          id: res.reservation_id || res.id,
+          // Use database id for operations, reservation_id for display
+          id: res.id, // Database primary key - required for update/delete operations
+          reservation_id: res.reservation_id || res.id, // Display ID for UI
+          // Preserve all backend fields needed for editing
+          customer_id: res.customer_id,
+          supplier_id: res.supplier_id,
+          service_type: res.service_type,
+          // Display fields
           customer: res.customer?.name || "Unknown Customer",
           customerEmail: res.customer?.email || "",
           customerPhone: res.customer?.phone || "",
           tripItem: `${res.service_type}: ${res.destination}`,
           roomType: res.service_type,
           destination: res.destination,
+          departure_date: res.departure_date,
+          return_date: res.return_date,
           checkIn: res.departure_date,
           checkOut: res.return_date || res.departure_date,
           totalNights: res.return_date
@@ -133,6 +142,7 @@ export const ReservationsPage: React.FC = () => {
             : 0,
           adults: res.adults || 0,
           children: res.children || 0,
+          infants: res.infants || 0,
           childAges: [],
           rooms: 0,
           mealPlan: "N/A",
@@ -140,12 +150,16 @@ export const ReservationsPage: React.FC = () => {
           supplier: res.supplier?.name || "N/A",
           status: res.status || "Pending",
           financeStatus: res.payment_status || "Pending",
+          payment_status: res.payment_status || "Pending",
           assignedAgent: res.created_by_user?.full_name || "N/A",
+          created_by: res.created_by,
           specialRequests: res.notes || "",
+          notes: res.notes || "",
           createdAt: res.created_at,
+          created_at: res.created_at,
+          updated_at: res.updated_at,
           dueDate: res.departure_date,
           supplierResponseTime: "Pending",
-          notes: res.notes || "",
         })
       );
       setReservations(mappedReservations);
@@ -236,22 +250,29 @@ export const ReservationsPage: React.FC = () => {
 
     try {
       // Ensure proper data types
-      const updateData = {
-        customer_id: parseInt(reservationData.customer_id),
+      // Note: customer_id cannot be updated per backend interface
+      const updateData: any = {
         supplier_id: reservationData.supplier_id
-          ? String(parseInt(reservationData.supplier_id))
+          ? parseInt(String(reservationData.supplier_id), 10)
           : undefined,
         service_type: reservationData.service_type,
         destination: reservationData.destination,
         departure_date: reservationData.departure_date,
         return_date: reservationData.return_date || undefined,
-        adults: parseInt(reservationData.adults),
-        children: parseInt(reservationData.children),
-        infants: parseInt(reservationData.infants || 0),
-        total_amount: parseFloat(reservationData.total_amount || 0),
+        adults: parseInt(String(reservationData.adults), 10),
+        children: parseInt(String(reservationData.children || 0), 10),
+        infants: parseInt(String(reservationData.infants || 0), 10),
+        total_amount: parseFloat(String(reservationData.total_amount || 0)),
         status: reservationData.status,
         notes: reservationData.notes || "",
       };
+
+      // Remove undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
 
       console.log("Updating reservation:", selectedReservation.id, updateData);
       await reservationService.updateReservation(
@@ -384,59 +405,15 @@ export const ReservationsPage: React.FC = () => {
   };
 
   const handleAddNote = async (note: string) => {
-    if (!selectedReservation) return;
-
-    try {
-      const currentNotes = selectedReservation.notes || "";
-      const updatedNotes = currentNotes
-        ? `${currentNotes}\n\n${new Date().toLocaleString()}: ${note}`
-        : `${new Date().toLocaleString()}: ${note}`;
-
-      await reservationService.updateReservation(selectedReservation.id, {
-        notes: updatedNotes,
-      });
-
-      await loadData();
-      toast.success("Note Added", "Internal note has been saved successfully.");
-    } catch (error: any) {
-      console.error("Error adding note:", error);
-      toast.error(
-        "Failed to add note",
-        error.response?.data?.message || error.message
-      );
-    }
+    // This handler is kept for backward compatibility but the modal now handles everything
+    // The modal will call the API directly, so we just need to reload data
+    await loadData();
   };
 
   const handleDocumentUpload = async (documentData: any) => {
-    if (!selectedReservation) return;
-
-    // Note: Document upload functionality would require a file upload endpoint
-    // For now, we'll add a note about the document upload
-    try {
-      const documentNote = `Document uploaded: ${
-        documentData.name || "Document"
-      } - ${documentData.type || "File"} (${new Date().toLocaleString()})`;
-      const currentNotes = selectedReservation.notes || "";
-      const updatedNotes = currentNotes
-        ? `${currentNotes}\n\n${documentNote}`
-        : documentNote;
-
-      await reservationService.updateReservation(selectedReservation.id, {
-        notes: updatedNotes,
-      });
-
-      await loadData();
-      toast.success(
-        "Document Uploaded",
-        "Document information has been recorded. Full file upload will be available when file storage is implemented."
-      );
-    } catch (error: any) {
-      console.error("Error uploading document:", error);
-      toast.error(
-        "Failed to upload document",
-        error.response?.data?.message || error.message
-      );
-    }
+    // This handler is kept for backward compatibility but the modal now handles everything
+    // The modal will call the API directly, so we just need to reload data
+    await loadData();
   };
 
   const handleMetricClick = (metricType: string) => {
@@ -475,7 +452,7 @@ export const ReservationsPage: React.FC = () => {
 
     const matchesSearch =
       reservation.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reservation.id.toLowerCase().includes(searchTerm.toLowerCase());
+      (reservation.reservation_id || reservation.id).toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
       statusFilter === "All Status" || reservation.status === statusFilter;
     const matchesSupplier =
@@ -875,7 +852,7 @@ export const ReservationsPage: React.FC = () => {
                             <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />
                           )}
                           <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {reservation.id}
+                            {reservation.reservation_id || reservation.id}
                           </span>
                         </div>
                       </td>

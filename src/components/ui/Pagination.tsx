@@ -52,7 +52,7 @@ export const Pagination: React.FC<PaginationProps> = ({
       <div className="text-sm text-gray-600 dark:text-gray-400">
         {typeof total === "number" && typeof perPage === "number" ? (
           <span>
-            Showing {(page - 1) * perPage + 1}-{Math.min(page * perPage, total)}{" "}
+            {(page - 1) * perPage + 1}-{Math.min(page * perPage, total)}{" "}
             of {total}
           </span>
         ) : (

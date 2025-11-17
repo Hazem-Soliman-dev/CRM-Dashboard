@@ -115,8 +115,8 @@ export const EditReservationModal: React.FC<EditReservationModalProps> = ({ isOp
 
     setIsLoading(true);
     try {
+      // Note: customer_id cannot be updated per backend interface
       const reservationData = {
-        customer_id: formData.customer_id,
         supplier_id: formData.supplier_id || undefined,
         service_type: formData.service_type,
         destination: formData.destination,
@@ -161,7 +161,7 @@ export const EditReservationModal: React.FC<EditReservationModalProps> = ({ isOp
                   Edit Reservation
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  ID: {reservation.id}
+                  ID: {reservation.reservation_id || reservation.id}
                 </p>
               </div>
             </div>

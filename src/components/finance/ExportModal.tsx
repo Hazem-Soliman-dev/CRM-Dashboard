@@ -3,18 +3,32 @@ import { X, Download } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
+import { 
+  exportAccountingExcel, 
+  exportAccountingPdf, 
+  exportAccountingCsv 
+} from '../../services/exportService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   data: any[];
+  filters?: {
+    statusFilter?: string;
+    agentFilter?: string;
+    supplierFilter?: string;
+    dateFromFilter?: string;
+    dateToFilter?: string;
+  };
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, data }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, data, filters = {} }) => {
   const [exportFormat, setExportFormat] = useState('excel');
   const [dateRange, setDateRange] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
   const [includeFields, setIncludeFields] = useState({
     basicInfo: true,
     paymentDetails: true,
@@ -22,18 +36,50 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, data 
     profitAnalysis: true,
     invoiceHistory: false
   });
+  const toast = useToastContext();
 
-  const handleExport = () => {
-    const exportData = {
-      format: exportFormat,
-      dateRange: dateRange === 'custom' ? { start: startDate, end: endDate } : dateRange,
-      fields: includeFields,
-      recordCount: data.length
-    };
-    
-    console.log('Exporting financial data:', exportData);
-    // Here you would implement the actual export logic
-    onClose();
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+
+      // Build filters object
+      const exportFilters: Record<string, any> = {
+        dateRange: dateRange === 'custom' ? { start: startDate, end: endDate } : dateRange,
+        status: filters.statusFilter && filters.statusFilter !== 'All Status' ? filters.statusFilter : undefined,
+        agent: filters.agentFilter && filters.agentFilter !== 'All Agents' ? filters.agentFilter : undefined,
+        supplier: filters.supplierFilter && filters.supplierFilter !== 'All Suppliers' ? filters.supplierFilter : undefined,
+        includeFields
+      };
+
+      // Add date filters if custom range
+      if (dateRange === 'custom' && startDate && endDate) {
+        exportFilters.dateFrom = startDate;
+        exportFilters.dateTo = endDate;
+      }
+
+      // Call appropriate export function
+      switch (exportFormat) {
+        case 'excel':
+          await exportAccountingExcel(exportFilters);
+          break;
+        case 'pdf':
+          await exportAccountingPdf(exportFilters);
+          break;
+        case 'csv':
+          await exportAccountingCsv(exportFilters);
+          break;
+        default:
+          await exportAccountingExcel(exportFilters);
+      }
+
+      toast.showToast('Export completed successfully', 'success');
+      onClose();
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast.showToast(error?.response?.data?.message || 'Failed to export data', 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -169,12 +215,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, data 
           </div>
 
           <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isExporting}>
               Cancel
             </Button>
-            <Button onClick={handleExport}>
+            <Button onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4 mr-2" />
-              Export Data
+              {isExporting ? 'Exporting...' : 'Export Data'}
             </Button>
           </div>
         </div>

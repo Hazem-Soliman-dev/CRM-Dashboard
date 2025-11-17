@@ -35,7 +35,7 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
     invoiceNumber: "",
     issueDate: "",
     dueDate: "",
-    status: "Awaiting Confirmation",
+    status: "Issued",
     notes: "",
   });
   const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
@@ -48,10 +48,16 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
     if (booking && isOpen) {
       const loadData = async () => {
         try {
+          // Use the database ID, not reservation_id
+          const bookingId = booking.id || booking.reservation_id;
+          console.log("Loading invoices for booking:", bookingId);
+          
           const [invoicesRes, suppliersRes] = await Promise.all([
-            invoiceService.getInvoicesForBooking(booking.id),
+            invoiceService.getInvoicesForBooking(String(bookingId)),
             supplierService.getAllSuppliers(),
           ]);
+          
+          console.log("Loaded invoices:", invoicesRes.invoices);
           setInvoices(invoicesRes.invoices || []);
           setSuppliers(suppliersRes || []);
 
@@ -128,6 +134,13 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
         "Supplier invoice has been recorded successfully."
       );
 
+      // Refresh invoices list
+      if (booking?.id) {
+        const bookingId = booking.id || booking.reservation_id;
+        const invoicesRes = await invoiceService.getInvoicesForBooking(String(bookingId));
+        setInvoices(invoicesRes.invoices || []);
+      }
+
       // Reset form
       setFormData({
         supplier_id: "",
@@ -135,12 +148,14 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
         invoiceNumber: "",
         issueDate: "",
         dueDate: "",
-        status: "Awaiting Confirmation",
+        status: "Issued",
         notes: "",
       });
       setInvoiceFile(null);
       setErrors({});
-      onClose();
+      
+      // Switch to existing tab to show the new invoice
+      setActiveTab("existing");
     } catch (error: any) {
       console.error("Error recording supplier invoice:", error);
       toast.error(
@@ -159,28 +174,24 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
     }
   };
 
-  const handleApproveInvoice = async (invoiceId: string) => {
+  const handleMarkAsPaid = async (invoiceId: string | number) => {
     try {
-      await invoiceService.updateInvoice(invoiceId, { status: "Approved" });
-      toast.success("Invoice Approved", "Supplier invoice has been approved.");
-      // Refresh data
-    } catch (error: any) {
-      console.error("Error approving invoice:", error);
-      toast.error(
-        "Error",
-        error.response?.data?.message || "Failed to approve invoice"
-      );
-    }
-  };
-
-  const handlePayInvoice = async (invoiceId: string) => {
-    try {
-      await invoiceService.updateInvoice(invoiceId, { status: "Paid" });
+      // Ensure invoiceId is a string
+      const id = String(invoiceId);
+      console.log("Marking invoice as paid:", id);
+      
+      const updatedInvoice = await invoiceService.updateInvoice(id, { status: "Paid" });
+      console.log("Invoice updated:", updatedInvoice);
+      
       toast.success(
         "Invoice Paid",
         "Supplier invoice has been marked as paid."
       );
-      // Refresh data
+      // Refresh invoices list
+      if (booking?.id) {
+        const invoicesRes = await invoiceService.getInvoicesForBooking(String(booking.id));
+        setInvoices(invoicesRes.invoices || []);
+      }
     } catch (error: any) {
       console.error("Error marking invoice as paid:", error);
       toast.error(
@@ -190,18 +201,47 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
     }
   };
 
+  const handleMarkAsUnpaid = async (invoiceId: string | number) => {
+    try {
+      // Ensure invoiceId is a string
+      const id = String(invoiceId);
+      console.log("Marking invoice as unpaid:", id);
+      
+      const updatedInvoice = await invoiceService.updateInvoice(id, { status: "Issued" });
+      console.log("Invoice updated:", updatedInvoice);
+      
+      toast.success(
+        "Invoice Updated",
+        "Supplier invoice has been marked as unpaid."
+      );
+      // Refresh invoices list
+      if (booking?.id) {
+        const invoicesRes = await invoiceService.getInvoicesForBooking(String(booking.id));
+        setInvoices(invoicesRes.invoices || []);
+      }
+    } catch (error: any) {
+      console.error("Error marking invoice as unpaid:", error);
+      toast.error(
+        "Error",
+        error.response?.data?.message || "Failed to update invoice"
+      );
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Paid":
         return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
-      case "Approved":
+      case "Sent":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300";
-      case "Awaiting Approval":
+      case "Issued":
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300";
       case "Overdue":
         return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300";
-      case "Disputed":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300";
+      case "Cancelled":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
+      case "Draft":
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
     }
@@ -297,22 +337,22 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
                           {invoice.status}
                         </span>
                         <div className="flex space-x-2">
-                          {invoice.status === "Awaiting Approval" && (
+                          {invoice.status !== "Paid" && invoice.status !== "Cancelled" && (
                             <button
-                              onClick={() => handleApproveInvoice(invoice.id)}
+                              onClick={() => handleMarkAsPaid(invoice.id)}
                               className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 p-1 rounded hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-                              title="Approve Invoice"
+                              title="Mark as Paid"
                             >
                               <CheckCircle className="h-4 w-4" />
                             </button>
                           )}
-                          {invoice.status === "Approved" && (
+                          {invoice.status === "Paid" && (
                             <button
-                              onClick={() => handlePayInvoice(invoice.id)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                              title="Mark as Paid"
+                              onClick={() => handleMarkAsUnpaid(invoice.id)}
+                              className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300 p-1 rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
+                              title="Mark as Unpaid"
                             >
-                              <DollarSign className="h-4 w-4" />
+                              <X className="h-4 w-4" />
                             </button>
                           )}
                         </div>
@@ -389,15 +429,12 @@ export const SupplierInvoiceModal: React.FC<SupplierInvoiceModalProps> = ({
                       handleInputChange("status", e.target.value)
                     }
                   >
-                    {/* Assuming supplierInvoiceStatuses is no longer needed as statuses are dynamic */}
-                    <option value="Awaiting Confirmation">
-                      Awaiting Confirmation
-                    </option>
-                    <option value="Awaiting Approval">Awaiting Approval</option>
-                    <option value="Approved">Approved</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Issued">Issued</option>
+                    <option value="Sent">Sent</option>
                     <option value="Paid">Paid</option>
                     <option value="Overdue">Overdue</option>
-                    <option value="Disputed">Disputed</option>
+                    <option value="Cancelled">Cancelled</option>
                   </Select>
 
                   <Input

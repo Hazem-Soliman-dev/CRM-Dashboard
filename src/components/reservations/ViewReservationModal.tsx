@@ -52,11 +52,11 @@ export const ViewReservationModal: React.FC<ViewReservationModalProps> = ({ isOp
   const handleQuickAction = (action: string) => {
     switch (action) {
       case 'contact-supplier':
-        toast.success('Supplier Contacted', `Called ${reservation.supplier} regarding booking ${reservation.id}`);
+        toast.success('Supplier Contacted', `Called ${reservation.supplier} regarding booking ${reservation.reservation_id || reservation.id}`);
         // In real app, this would log the call and update activity
         break;
       case 'update-status':
-        toast.success('Status Updated', `Reservation ${reservation.id} status updated to "Confirmed"`);
+        toast.success('Status Updated', `Reservation ${reservation.reservation_id || reservation.id} status updated to "Confirmed"`);
         // In real app, this would open status update modal
         break;
       case 'request-payment':
@@ -89,7 +89,7 @@ export const ViewReservationModal: React.FC<ViewReservationModalProps> = ({ isOp
         <div className="relative w-full max-w-6xl bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Reservation Details - {reservation.id}
+              Reservation Details - {reservation.reservation_id || reservation.id}
             </h2>
             <button
               onClick={onClose}

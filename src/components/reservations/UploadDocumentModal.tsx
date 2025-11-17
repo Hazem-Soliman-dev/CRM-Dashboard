@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
-import { X, Upload, File } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Upload, File, Trash2, Download } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { formatDate } from '../../utils/format';
+import reservationDocumentService, { ReservationDocument } from '../../services/reservationDocumentService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface UploadDocumentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (documentData: any) => Promise<void>;
+  onSave?: (documentData: any) => Promise<void>; // Optional for backward compatibility
   reservation: any;
 }
 
@@ -23,35 +25,41 @@ const documentTypes = [
   'Other'
 ];
 
-const mockExistingDocuments = [
-  {
-    id: 1,
-    name: 'Hotel_Confirmation_Steigenberger.pdf',
-    type: 'Supplier Confirmation',
-    uploadedBy: 'Sarah Johnson',
-    uploadDate: '2025-01-14T10:30:00Z',
-    size: '245 KB'
-  },
-  {
-    id: 2,
-    name: 'Payment_Receipt_001.pdf',
-    type: 'Payment Receipt',
-    uploadedBy: 'Finance Team',
-    uploadDate: '2025-01-13T16:45:00Z',
-    size: '128 KB'
-  }
-];
-
 export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({ 
   isOpen, 
   onClose, 
   onSave, 
   reservation 
 }) => {
+  const toast = useToastContext();
+  const [documents, setDocuments] = useState<ReservationDocument[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [documentType, setDocumentType] = useState('Supplier Confirmation');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+
+  // Load documents when modal opens
+  useEffect(() => {
+    if (isOpen && reservation?.id) {
+      loadDocuments();
+    }
+  }, [isOpen, reservation?.id]);
+
+  const loadDocuments = async () => {
+    if (!reservation?.id) return;
+    
+    setIsLoadingDocuments(true);
+    try {
+      const fetchedDocuments = await reservationDocumentService.getDocumentsByReservationId(reservation.id);
+      setDocuments(fetchedDocuments);
+    } catch (error: any) {
+      console.error('Error loading documents:', error);
+      toast.error('Error', 'Failed to load documents');
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -64,29 +72,84 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
     e.preventDefault();
     
     if (!selectedFile) {
+      toast.error('Error', 'Please select a file to upload');
+      return;
+    }
+
+    if (!reservation?.id) {
+      toast.error('Error', 'Reservation ID is required');
+      return;
+    }
+
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (selectedFile.size > maxSize) {
+      toast.error('Error', 'File size exceeds maximum limit of 10MB');
       return;
     }
 
     setIsLoading(true);
     try {
-      const documentData = {
-        file: selectedFile,
-        type: documentType,
-        description: description,
-        reservationId: reservation.id,
-        uploadedBy: 'Current User', // In real app, get from auth context
-        uploadDate: new Date().toISOString()
-      };
+      // Convert file to base64
+      const fileData = await reservationDocumentService.fileToBase64(selectedFile);
+      
+      // Get MIME type
+      const mimeType = selectedFile.type || 'application/octet-stream';
 
-      await onSave(documentData);
+      await reservationDocumentService.createDocument(reservation.id, {
+        document_name: selectedFile.name,
+        document_type: documentType,
+        file_data: fileData,
+        file_size: selectedFile.size,
+        mime_type: mimeType,
+        description: description || undefined
+      });
       
       // Reset form
       setSelectedFile(null);
       setDocumentType('Supplier Confirmation');
       setDescription('');
-      onClose();
-    } catch (error) {
+      await loadDocuments();
+      toast.success('Success', 'Document uploaded successfully');
+    } catch (error: any) {
       console.error('Error uploading document:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to upload document');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDownloadDocument = async (documentId: number, documentName: string) => {
+    try {
+      const blob = await reservationDocumentService.downloadDocument(documentId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = documentName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Success', 'Document downloaded successfully');
+    } catch (error: any) {
+      console.error('Error downloading document:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to download document');
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: number) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await reservationDocumentService.deleteDocument(documentId);
+      await loadDocuments();
+      toast.success('Success', 'Document deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to delete document');
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +174,7 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
             <div className="flex items-center space-x-3">
               <Upload className="h-6 w-6 text-purple-500" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Upload Document - {reservation.id}
+                Upload Document - {reservation.reservation_id || reservation.id}
               </h2>
             </div>
             <button
@@ -236,38 +299,63 @@ export const UploadDocumentModal: React.FC<UploadDocumentModalProps> = ({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Existing Documents
                 </h3>
-                <div className="space-y-3">
-                  {mockExistingDocuments.map((doc) => (
-                    <div key={doc.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center space-x-3">
-                          <File className="h-5 w-5 text-blue-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {doc.name}
-                            </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {doc.type} • {doc.size}
-                            </p>
+                {isLoadingDocuments ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading documents...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.length === 0 ? (
+                      <div className="text-center py-8">
+                        <File className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded yet</p>
+                      </div>
+                    ) : (
+                      documents.map((doc) => (
+                        <div key={doc.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center space-x-3">
+                              <File className="h-5 w-5 text-blue-500" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {doc.document_name}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {doc.document_type} • {formatFileSize(doc.file_size)}
+                                </p>
+                                {doc.description && (
+                                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                                    {doc.description}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <button
+                                onClick={() => handleDownloadDocument(doc.id, doc.document_name)}
+                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1"
+                                title="Download document"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDocument(doc.id)}
+                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1"
+                                title="Delete document"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Uploaded by {doc.uploaded_by_user?.full_name || 'Unknown'} on {formatDate(doc.created_at)}
                           </div>
                         </div>
-                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 text-sm">
-                          Download
-                        </button>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        Uploaded by {doc.uploadedBy} on {formatDate(doc.uploadDate)}
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {mockExistingDocuments.length === 0 && (
-                    <div className="text-center py-8">
-                      <File className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded yet</p>
-                    </div>
-                  )}
-                </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -88,20 +88,50 @@ export const IssueInvoiceModal: React.FC<IssueInvoiceModalProps> = ({
 
     setIsLoading(true);
     try {
+      // Ensure we have valid IDs
+      const bookingId = booking.id || booking.reservation_id;
+      const customerId = booking.customer_id || booking.customer?.id;
+      
+      if (!bookingId) {
+        toast.error('Error', 'Booking ID is required');
+        return;
+      }
+      
+      if (!customerId) {
+        toast.error('Error', 'Customer ID is required');
+        return;
+      }
+
       const invoiceData = {
-        booking_id: booking.id,
-        customer_id: booking.customer.id,
+        booking_id: String(bookingId), // Ensure it's a string for validation
+        customer_id: String(customerId), // Ensure it's a string for validation
         amount: Number(formData.amount),
-        due_date: formData.dueDate,
+        due_date: formData.dueDate, // Format: YYYY-MM-DD
         payment_terms: formData.paymentTerms,
-        notes: formData.notes,
+        notes: formData.notes || undefined,
         status: 'Issued'
       };
 
-      await invoiceService.createInvoice(invoiceData);
+      const createdInvoice = await invoiceService.createInvoice(invoiceData);
       
-      toast.success('Invoice Issued', 'Invoice has been generated successfully.');
-      onSave(invoiceData);
+      toast.success('Invoice Issued', `Invoice ${createdInvoice.invoice_id || createdInvoice.id || 'has been generated'} successfully.`);
+      
+      // Reset form
+      setFormData({
+        template: 'Standard Invoice',
+        amount: '',
+        dueDate: '',
+        paymentTerms: '14 days',
+        notes: '',
+        sendImmediately: true
+      });
+      setErrors({});
+      
+      // Call onSave to refresh parent component data
+      if (onSave) {
+        await onSave(invoiceData);
+      }
+      
       onClose();
     } catch (error: any) {
       console.error('Error issuing invoice:', error);
@@ -134,7 +164,7 @@ export const IssueInvoiceModal: React.FC<IssueInvoiceModalProps> = ({
             <div className="flex items-center space-x-3">
               <FileText className="h-6 w-6 text-purple-500" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Issue Invoice - {booking.id}
+                Issue Invoice - {booking.reservation_id || booking.id}
               </h2>
             </div>
             <button
@@ -152,7 +182,7 @@ export const IssueInvoiceModal: React.FC<IssueInvoiceModalProps> = ({
                 Booking Information
               </h4>
               <div className="text-sm text-purple-700 dark:text-purple-400">
-                <p><strong>Customer:</strong> {booking.customer.name}</p>
+                <p><strong>Customer:</strong> {booking.customerName || booking.customer?.name || booking.customer}</p>
                 <p><strong>Service:</strong> {booking.tripItem}</p>
                 <p><strong>Total Amount:</strong> {formatCurrency(booking.totalAmount)}</p>
                 <p><strong>Outstanding:</strong> {formatCurrency(booking.outstandingBalance)}</p>

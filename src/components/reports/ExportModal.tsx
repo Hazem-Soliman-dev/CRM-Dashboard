@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Download } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
+import { exportReportExcel, exportReportPdf, exportReportCsv } from '../../services/exportService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -12,28 +14,58 @@ interface ExportModalProps {
     agentFilter: string;
     sourceFilter: string;
   };
+  reportId?: string;
 }
 
-export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, filters }) => {
+export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, filters, reportId = 'monthly-revenue' }) => {
   const [exportFormat, setExportFormat] = useState('excel');
   const [exportScope, setExportScope] = useState('current');
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeDetails, setIncludeDetails] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const toast = useToastContext();
 
-  const handleExport = () => {
-    const exportData = {
-      format: exportFormat,
-      scope: exportScope,
-      filters: filters,
-      options: {
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+
+      // Build filters object
+      const exportFilters: Record<string, any> = {
+        dateRange: filters.dateRange,
+        category: filters.categoryFilter !== 'All Categories' ? filters.categoryFilter : undefined,
+        agent: filters.agentFilter !== 'All Agents' ? filters.agentFilter : undefined,
+        source: filters.sourceFilter !== 'All Sources' ? filters.sourceFilter : undefined
+      };
+
+      const options = {
+        scope: exportScope,
         includeCharts,
         includeDetails
+      };
+
+      // Call appropriate export function
+      switch (exportFormat) {
+        case 'excel':
+          await exportReportExcel(reportId, exportFilters, options);
+          break;
+        case 'pdf':
+          await exportReportPdf(reportId, exportFilters);
+          break;
+        case 'csv':
+          await exportReportCsv(reportId, exportFilters, options);
+          break;
+        default:
+          await exportReportExcel(reportId, exportFilters, options);
       }
-    };
-    
-    console.log('Exporting report data:', exportData);
-    // Implement actual export logic
-    onClose();
+
+      toast.showToast('Report exported successfully', 'success');
+      onClose();
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast.showToast(error?.response?.data?.message || 'Failed to export report', 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -141,12 +173,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose, filte
           </div>
 
           <div className="flex justify-end space-x-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isExporting}>
               Cancel
             </Button>
-            <Button onClick={handleExport}>
+            <Button onClick={handleExport} disabled={isExporting}>
               <Download className="h-4 w-4 mr-2" />
-              Export Report
+              {isExporting ? 'Exporting...' : 'Export Report'}
             </Button>
           </div>
         </div>

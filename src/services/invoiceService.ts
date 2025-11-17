@@ -12,7 +12,8 @@ const invoiceService = {
   // Create a new invoice
   createInvoice: async (invoiceData: any) => {
     const response = await api.post('/invoices', invoiceData);
-    return response.data.data;
+    // Backend returns { success: true, data: {...} }
+    return response.data.data || response.data;
   },
 
   // Get a single invoice by ID

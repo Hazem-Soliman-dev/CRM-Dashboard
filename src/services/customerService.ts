@@ -66,20 +66,27 @@ interface PaginatedCustomers {
 
 // Transform snake_case backend data to camelCase for frontend
 const transformCustomer = (customer: any): any => {
+  // Ensure total_bookings is a number (handle null, undefined, or string)
+  const totalBookings = customer.total_bookings !== null && customer.total_bookings !== undefined
+    ? (typeof customer.total_bookings === 'number' ? customer.total_bookings : parseInt(String(customer.total_bookings), 10) || 0)
+    : 0;
+
   return {
     ...customer,
     assignedStaff:
       customer.assigned_staff?.full_name || customer.assigned_staff_id || "",
     contactMethod: customer.contact_method || "Email",
-    totalBookings: customer.total_bookings || 0,
-    lastTrip: customer.last_trip,
+    totalBookings: totalBookings,
+    totalValue: customer.total_value || 0,
+    lastTrip: customer.last_trip || customer.last_trip,
     createdAt: customer.created_at,
     updatedAt: customer.updated_at,
     // Keep original fields for backward compatibility
     assigned_staff: customer.assigned_staff,
     assigned_staff_id: customer.assigned_staff_id,
     contact_method: customer.contact_method,
-    total_bookings: customer.total_bookings,
+    total_bookings: totalBookings,
+    total_value: customer.total_value || 0,
     last_trip: customer.last_trip,
     created_at: customer.created_at,
     updated_at: customer.updated_at,

@@ -5,6 +5,8 @@ import { Select } from '../ui/Select';
 import { Input } from '../ui/Input';
 import { formatCurrency, formatDate } from '../../utils/format';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Cell } from 'recharts';
+import { exportFinancialReport } from '../../services/exportService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface FinancialReportsModalProps {
   isOpen: boolean;
@@ -44,16 +46,32 @@ export const FinancialReportsModal: React.FC<FinancialReportsModalProps> = ({
   const [dateRange, setDateRange] = useState('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'excel' | 'pdf' | 'csv'>('excel');
+  const toast = useToastContext();
 
-  const handleExportReport = () => {
-    const reportData = {
-      type: reportType,
-      dateRange: dateRange === 'custom' ? { start: startDate, end: endDate } : dateRange,
-      data: financeData
-    };
-    
-    console.log('Exporting financial report:', reportData);
-    // In real app, generate and download report
+  const handleExportReport = async () => {
+    try {
+      setIsExporting(true);
+
+      // Map report type to backend format
+      const backendReportType = reportType === 'agent' ? 'agent-performance' : 
+                                reportType === 'outstanding' ? 'outstanding-balances' : 
+                                reportType;
+
+      const filters = {
+        dateRange: dateRange === 'custom' ? { start: startDate, end: endDate } : dateRange,
+        reportType: backendReportType
+      };
+
+      await exportFinancialReport(backendReportType, filters, exportFormat);
+      toast.showToast('Report exported successfully', 'success');
+    } catch (error: any) {
+      console.error('Export failed:', error);
+      toast.showToast(error?.response?.data?.message || 'Failed to export report', 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const totalRevenue = financeData.reduce((sum, b) => sum + b.totalAmount, 0);
@@ -126,10 +144,21 @@ export const FinancialReportsModal: React.FC<FinancialReportsModalProps> = ({
                 )}
               </div>
 
-              <Button onClick={handleExportReport} className="mt-4 sm:mt-0">
-                <Download className="h-4 w-4 mr-2" />
-                Export Report
-              </Button>
+              <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+                <Select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value as 'excel' | 'pdf' | 'csv')}
+                  className="w-auto"
+                >
+                  <option value="excel">Excel</option>
+                  <option value="pdf">PDF</option>
+                  <option value="csv">CSV</option>
+                </Select>
+                <Button onClick={handleExportReport} disabled={isExporting}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExporting ? 'Exporting...' : 'Export Report'}
+                </Button>
+              </div>
             </div>
 
             {/* Financial Overview */}

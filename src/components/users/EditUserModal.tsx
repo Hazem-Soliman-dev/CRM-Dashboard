@@ -3,8 +3,17 @@ import { X, Save } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
-import roleService from '../../services/roleService';
 import departmentService from '../../services/departmentService';
+
+// Valid roles that match backend expectations
+const VALID_ROLES = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'customer', label: 'Customer' },
+  { value: 'sales', label: 'Sales' },
+  { value: 'reservation', label: 'Reservation' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'operations', label: 'Operations' },
+];
 
 interface EditUserModalProps {
   isOpen: boolean;
@@ -14,7 +23,6 @@ interface EditUserModalProps {
 }
 
 export const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, onSave, user }) => {
-  const [roles, setRoles] = React.useState<any[]>([]);
   const [departments, setDepartments] = React.useState<any[]>([]);
   const [formData, setFormData] = useState({
     name: '',
@@ -31,14 +39,10 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, o
     if (isOpen) {
       const loadData = async () => {
         try {
-          const [rolesRes, departmentsRes] = await Promise.all([
-            roleService.getAllRoles(),
-            departmentService.getAllDepartments()
-          ]);
-          setRoles(rolesRes.roles || []);
+          const departmentsRes = await departmentService.getAllDepartments();
           setDepartments(departmentsRes.departments || []);
         } catch (error) {
-          console.error('Failed to load roles and departments', error);
+          console.error('Failed to load departments', error);
         }
       };
       loadData();
@@ -47,16 +51,28 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, o
 
   useEffect(() => {
     if (user && isOpen) {
+      // Convert role to lowercase to match backend format
+      const userRole = user.role ? user.role.toLowerCase() : '';
+      // Ensure the role is one of the valid roles, default to first valid role if not
+      const validRole = VALID_ROLES.find(r => r.value === userRole)?.value || VALID_ROLES[0]?.value || '';
+      
+      // Find department ID by name if departmentId is not available
+      let departmentId = user.departmentId || '';
+      if (!departmentId && user.department) {
+        const dept = departments.find(d => d.name === user.department);
+        departmentId = dept?.id?.toString() || '';
+      }
+      
       setFormData({
         name: user.name || '',
         email: user.email || '',
         phone: user.phone || '',
-        role: user.roleId || '',
-        department: user.departmentId || '',
+        role: validRole,
+        department: departmentId,
         status: user.status || 'Active'
       });
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, departments]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -161,8 +177,8 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ isOpen, onClose, o
                 value={formData.role}
                 onChange={(e) => handleInputChange('role', e.target.value)}
               >
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
+                {VALID_ROLES.map(role => (
+                  <option key={role.value} value={role.value}>{role.label}</option>
                 ))}
               </Select>
 

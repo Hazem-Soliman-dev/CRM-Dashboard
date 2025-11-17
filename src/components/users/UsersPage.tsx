@@ -91,27 +91,43 @@ export const UsersPage: React.FC = () => {
         departmentService.getAllDepartments(),
       ]);
 
-      const mappedUsers = userRes.users.map((user: any) => ({
-        id: user.id,
-        name: user.full_name || user.name,
-        email: user.email,
-        phone: user.phone || "",
-        role: user.role
-          ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
-          : "Agent",
-        department: user.department || "General",
-        status: user.status
-          ? user.status.charAt(0).toUpperCase() + user.status.slice(1)
-          : "Active",
-        lastLogin: user.last_login || null,
-        joinDate: user.created_at,
-        avatar: user.avatar_url || null,
-        permissions: [], // Can be enhanced later
-        tasksCompleted: 0, // Can be calculated from stats later
-        avgResponseTime: "0h", // Can be calculated from stats later
-        casesClosed: 0, // Can be calculated from stats later
-        satisfactionRate: 0, // Can be calculated from stats later
-      }));
+      // Create a map of department IDs to names for quick lookup
+      const departmentMap = new Map(
+        (departmentRes.departments || []).map((dept: any) => [
+          dept.id?.toString(),
+          dept.name,
+        ])
+      );
+
+      const mappedUsers = userRes.users.map((user: any) => {
+        // Get department name from ID, or use the department value if it's already a name
+        const departmentId = user.department?.toString();
+        const departmentName =
+          departmentMap.get(departmentId) || user.department || "General";
+
+        return {
+          id: user.id,
+          name: user.full_name || user.name,
+          email: user.email,
+          phone: user.phone || "",
+          role: user.role
+            ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
+            : "Agent",
+          department: departmentName,
+          departmentId: departmentId, // Keep ID for editing
+          status: user.status
+            ? user.status.charAt(0).toUpperCase() + user.status.slice(1)
+            : "Active",
+          lastLogin: user.last_login || null,
+          joinDate: user.created_at,
+          avatar: user.avatar_url || null,
+          permissions: [], // Can be enhanced later
+          tasksCompleted: 0, // Can be calculated from stats later
+          avgResponseTime: "0h", // Can be calculated from stats later
+          casesClosed: 0, // Can be calculated from stats later
+          satisfactionRate: 0, // Can be calculated from stats later
+        };
+      });
       setUsers(mappedUsers);
       setRoles(roleRes.roles || []);
       setDepartments(departmentRes.departments || []);
@@ -201,7 +217,7 @@ export const UsersPage: React.FC = () => {
         password: tempPassword,
         full_name: userData.name || userData.full_name,
         phone: userData.phone,
-        role: (userData.role || "agent").toLowerCase(),
+        role: (userData.role || "customer").toLowerCase(),
         department: userData.department,
       });
 
@@ -232,7 +248,7 @@ export const UsersPage: React.FC = () => {
       await userService.updateUser(updatedUser.id, {
         full_name: updatedUser.name || updatedUser.full_name,
         phone: updatedUser.phone,
-        role: (updatedUser.role || "agent").toLowerCase(),
+        role: updatedUser.role ? updatedUser.role.toLowerCase() : undefined,
         department: updatedUser.department,
         status: (updatedUser.status || "active").toLowerCase(),
       });

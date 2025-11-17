@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { X, Send, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Send, MessageSquare, Loader2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { formatDate } from '../../utils/format';
+import reservationNoteService, { ReservationNote } from '../../services/reservationNoteService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface InternalChatModalProps {
   isOpen: boolean;
@@ -12,40 +14,30 @@ interface InternalChatModalProps {
 
 const departments = ['Sales', 'Reservation', 'Operations', 'Finance'];
 
-const mockChatHistory = [
-  {
-    id: 1,
-    message: 'Customer has requested to change check-in date. Can we accommodate?',
-    sender: 'Sarah Johnson',
-    department: 'Sales',
-    timestamp: '2025-01-15T10:30:00Z',
-    type: 'message'
-  },
-  {
-    id: 2,
-    message: 'Checking with supplier for availability on new dates.',
-    sender: 'Mike Chen',
-    department: 'Reservation',
-    timestamp: '2025-01-15T11:15:00Z',
-    type: 'message'
-  },
-  {
-    id: 3,
-    message: 'Supplier confirmed availability. Additional cost of $50 per night.',
-    sender: 'Mike Chen',
-    department: 'Reservation',
-    timestamp: '2025-01-15T14:20:00Z',
-    type: 'update'
-  },
-  {
-    id: 4,
-    message: 'Customer agreed to additional cost. Please update invoice.',
-    sender: 'Sarah Johnson',
-    department: 'Sales',
-    timestamp: '2025-01-15T15:45:00Z',
-    type: 'message'
+// Map backend note types to UI message types
+const getMessageTypeFromNote = (note: ReservationNote): 'message' | 'update' | 'alert' => {
+  // Check if note contains update/alert keywords
+  const noteLower = note.note.toLowerCase();
+  if (noteLower.includes('alert') || noteLower.includes('urgent') || noteLower.includes('critical')) {
+    return 'alert';
   }
-];
+  if (noteLower.includes('update') || noteLower.includes('status') || noteLower.includes('confirmed')) {
+    return 'update';
+  }
+  return 'message';
+};
+
+// Map user role to department name
+const getDepartmentFromRole = (role: string): string => {
+  const roleMap: Record<string, string> = {
+    'sales': 'Sales',
+    'reservation': 'Reservation',
+    'operations': 'Operations',
+    'finance': 'Finance',
+    'admin': 'Admin',
+  };
+  return roleMap[role?.toLowerCase()] || 'General';
+};
 
 export const InternalChatModal: React.FC<InternalChatModalProps> = ({ 
   isOpen, 
@@ -55,24 +47,79 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
   const [newMessage, setNewMessage] = useState('');
   const [targetDepartment, setTargetDepartment] = useState('Sales');
   const [messageType, setMessageType] = useState<'message' | 'update' | 'alert'>('message');
+  const [chatHistory, setChatHistory] = useState<ReservationNote[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const toast = useToastContext();
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim()) return;
+  // Get current user info
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUserRole = currentUser.role || 'customer';
+  const currentUserDepartment = getDepartmentFromRole(currentUserRole);
+  const currentUserName = currentUser.full_name || 'Current User';
 
-    const message = {
-      message: newMessage,
-      sender: 'Current User', // In real app, get from auth context
-      department: 'Finance',
-      targetDepartment: targetDepartment,
-      type: messageType,
-      timestamp: new Date().toISOString(),
-      bookingId: booking?.id
-    };
+  // Load chat history when modal opens
+  useEffect(() => {
+    if (isOpen && booking?.id) {
+      loadChatHistory();
+    }
+  }, [isOpen, booking?.id]);
 
-    console.log('Sending internal message:', message);
-    // In real app, save to Supabase and trigger real-time updates
+  const loadChatHistory = async () => {
+    if (!booking?.id) return;
     
-    setNewMessage('');
+    setLoading(true);
+    try {
+      // Use database ID for API call
+      const reservationId = booking.id;
+      const notes = await reservationNoteService.getNotesByReservation(reservationId);
+      // Filter to show interdepartmental notes (internal chat)
+      const interdepartmentalNotes = notes.filter(
+        note => note.note_type === 'interdepartmental' || note.note_type === 'internal'
+      );
+      setChatHistory(interdepartmentalNotes);
+    } catch (error: any) {
+      console.error('Failed to load chat history:', error);
+      toast.error('Error', 'Failed to load chat history');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !booking?.id) return;
+
+    setSending(true);
+    try {
+      // Add message type prefix to note text for better categorization
+      let noteText = newMessage;
+      if (messageType === 'alert') {
+        noteText = `[ALERT] ${noteText}`;
+      } else if (messageType === 'update') {
+        noteText = `[UPDATE] ${noteText}`;
+      }
+
+      // Create the note
+      const noteData = {
+        note: noteText,
+        note_type: 'interdepartmental' as const,
+        target_department: targetDepartment,
+      };
+
+      const reservationId = booking.id;
+      await reservationNoteService.createNote(reservationId, noteData);
+      
+      toast.success('Message Sent', 'Your message has been sent successfully.');
+      setNewMessage('');
+      
+      // Reload chat history
+      await loadChatHistory();
+    } catch (error: any) {
+      console.error('Failed to send message:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to send message');
+    } finally {
+      setSending(false);
+    }
   };
 
   const getMessageTypeColor = (type: string) => {
@@ -104,7 +151,7 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
             <div className="flex items-center space-x-3">
               <MessageSquare className="h-6 w-6 text-green-500" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Internal Communication - {booking.id}
+                Internal Communication - {booking.reservation_id || booking.id}
               </h2>
             </div>
             <button
@@ -122,10 +169,10 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
                 Booking Information
               </h4>
               <div className="text-sm text-green-700 dark:text-green-400">
-                <p><strong>Customer:</strong> {booking.customer}</p>
+                <p><strong>Customer:</strong> {booking.customerName || booking.customer?.name || booking.customer || 'Unknown'}</p>
                 <p><strong>Service:</strong> {booking.tripItem}</p>
                 <p><strong>Status:</strong> {booking.paymentStatus}</p>
-                <p><strong>Outstanding:</strong> ${booking.outstandingBalance}</p>
+                <p><strong>Outstanding:</strong> ${booking.outstandingBalance?.toFixed(2) || '0.00'}</p>
               </div>
             </div>
 
@@ -136,24 +183,47 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
                   Communication History
                 </h3>
                 <div className="space-y-4 max-h-80 overflow-y-auto">
-                  {mockChatHistory.map((chat) => (
-                    <div key={chat.id} className={`p-4 rounded-lg ${getMessageTypeColor(chat.type)}`}>
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={`text-sm font-medium ${getDepartmentColor(chat.department)}`}>
-                            {chat.sender}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            ({chat.department})
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatDate(chat.timestamp)}
-                        </div>
-                      </div>
-                      <p className="text-gray-700 dark:text-gray-300">{chat.message}</p>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                      <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Loading messages...</span>
                     </div>
-                  ))}
+                  ) : chatHistory.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    chatHistory.map((note) => {
+                      const messageType = getMessageTypeFromNote(note);
+                      // Get sender department from user data, fallback to role-based or target department
+                      const senderDepartment = note.created_by_user?.department 
+                        || (note.created_by_user?.role ? getDepartmentFromRole(note.created_by_user.role) : null)
+                        || note.target_department 
+                        || 'General';
+                      
+                      return (
+                        <div key={note.id} className={`p-4 rounded-lg ${getMessageTypeColor(messageType)}`}>
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <span className={`text-sm font-medium ${getDepartmentColor(senderDepartment)}`}>
+                                {note.created_by_user?.full_name || 'Unknown User'}
+                              </span>
+                              {note.target_department && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  → {note.target_department}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatDate(note.created_at)}
+                            </div>
+                          </div>
+                          <p className="text-gray-700 dark:text-gray-300">{note.note}</p>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -169,7 +239,7 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
                       value={targetDepartment}
                       onChange={(e) => setTargetDepartment(e.target.value)}
                     >
-                      {departments.filter(dept => dept !== 'Finance').map(dept => (
+                      {departments.filter(dept => dept !== currentUserDepartment).map(dept => (
                         <option key={dept} value={dept}>{dept}</option>
                       ))}
                     </Select>
@@ -200,11 +270,12 @@ export const InternalChatModal: React.FC<InternalChatModalProps> = ({
 
                   <Button 
                     onClick={handleSendMessage}
-                    disabled={!newMessage.trim()}
+                    disabled={!newMessage.trim() || sending}
                     className="w-full"
+                    loading={sending}
                   >
                     <Send className="h-4 w-4 mr-2" />
-                    Send to {targetDepartment}
+                    {sending ? 'Sending...' : `Send to ${targetDepartment}`}
                   </Button>
                 </div>
 

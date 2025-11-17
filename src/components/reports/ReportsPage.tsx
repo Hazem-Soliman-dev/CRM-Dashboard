@@ -272,19 +272,33 @@ export const ReportsPage: React.FC = () => {
   };
 
   const handleExportPDF = async () => {
-    const reportId = "monthly-revenue";
-    await exportReportPdf(reportId);
+    try {
+      const reportId = "monthly-revenue";
+      const filters = {
+        dateRange,
+        category: categoryFilter !== 'All Categories' ? categoryFilter : undefined,
+        agent: agentFilter !== 'All Agents' ? agentFilter : undefined,
+        source: sourceFilter !== 'All Sources' ? sourceFilter : undefined,
+      };
+      await exportReportPdf(reportId, filters);
+    } catch (error: any) {
+      console.error('PDF export failed:', error);
+    }
   };
 
   const handleExportExcel = async () => {
-    const reportId = "monthly-revenue";
-    const filters = {
-      dateRange,
-      category: categoryFilter,
-      agent: agentFilter,
-      source: sourceFilter,
-    };
-    await exportReportExcel(reportId, filters);
+    try {
+      const reportId = "monthly-revenue";
+      const filters = {
+        dateRange,
+        category: categoryFilter !== 'All Categories' ? categoryFilter : undefined,
+        agent: agentFilter !== 'All Agents' ? agentFilter : undefined,
+        source: sourceFilter !== 'All Sources' ? sourceFilter : undefined,
+      };
+      await exportReportExcel(reportId, filters);
+    } catch (error: any) {
+      console.error('Excel export failed:', error);
+    }
   };
 
   return (
@@ -1123,6 +1137,7 @@ export const ReportsPage: React.FC = () => {
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           filters={{ dateRange, categoryFilter, agentFilter, sourceFilter }}
+          reportId="monthly-revenue"
         />
       </ActionGuard>
 

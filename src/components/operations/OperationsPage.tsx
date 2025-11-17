@@ -1702,8 +1702,8 @@ export const OperationsPage: React.FC = () => {
             }
 
             try {
-              // Map staff type to user role (default to 'agent' for operations staff)
-              const role = "agent";
+              // Map staff type to user role (operations staff use 'operations' role)
+              const role = "operations";
 
               // Generate a temporary password (staff should change on first login)
               const tempPassword = `TempPass${Math.random()
@@ -1715,9 +1715,9 @@ export const OperationsPage: React.FC = () => {
                 password: tempPassword,
                 full_name: staffData.full_name,
                 phone: staffData.phone,
-                role: role,
+                role: role as 'admin' | 'customer' | 'sales' | 'reservation' | 'finance' | 'operations',
                 department: staffData.department,
-              } as unknown as CreateUserData);
+              });
               showSuccess(
                 "Staff Added",
                 `New staff member has been added successfully. Temporary password: ${tempPassword}`

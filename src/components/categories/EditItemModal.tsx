@@ -3,6 +3,7 @@ import { X, Save, Plus } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Button } from '../ui/Button';
+import { Category } from '../../services/categoryService';
 
 interface EditItemModalProps {
   isOpen: boolean;
@@ -10,33 +11,11 @@ interface EditItemModalProps {
   onSave: (itemData: any) => Promise<void>;
   item: any;
   suppliers: any[];
+  categories?: Category[];
   onAddSupplier: () => void;
 }
 
-const categoryTypes = [
-  'Hotel', 'Hostel', 'Apartment', 'Trip Package', 'Tour', 'Activities', 
-  'Car Rental', 'Transportation', 'Events', 'Cruise', 'Boat', 'Diving', 
-  'Aqua Park', 'Day Trip'
-];
-
-const priceUnits = {
-  'Hotel': ['per night', 'per week', 'per month'],
-  'Hostel': ['per night', 'per week'],
-  'Apartment': ['per night', 'per week', 'per month'],
-  'Trip Package': ['per person', 'per trip', 'per group'],
-  'Tour': ['per person', 'per group'],
-  'Activities': ['per person', 'per group', 'per hour'],
-  'Car Rental': ['per day', 'per week', 'per month'],
-  'Transportation': ['per person', 'per trip', 'per km'],
-  'Events': ['per person', 'per event'],
-  'Cruise': ['per person', 'per cabin'],
-  'Boat': ['per person', 'per hour', 'per day'],
-  'Diving': ['per person', 'per dive'],
-  'Aqua Park': ['per person', 'per day'],
-  'Day Trip': ['per person', 'per group']
-};
-
-const statuses = ['Available', 'Booked', 'Inactive'];
+const statuses = ['Active', 'Inactive', 'Discontinued'];
 
 export const EditItemModal: React.FC<EditItemModalProps> = ({ 
   isOpen, 
@@ -44,16 +23,19 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
   onSave, 
   item,
   suppliers,
+  categories = [],
   onAddSupplier 
 }) => {
   const [formData, setFormData] = useState({
-    categoryType: 'Hotel',
+    category_id: '',
     name: '',
     description: '',
     price: '',
-    priceUnit: 'per night',
-    supplierId: '',
-    status: 'Available',
+    cost: '',
+    stock_quantity: '',
+    min_stock_level: '',
+    supplier_id: '',
+    status: 'Active',
     notes: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -62,13 +44,15 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
   useEffect(() => {
     if (item && isOpen) {
       setFormData({
-        categoryType: item.categoryType || 'Hotel',
+        category_id: item.category_id || '',
         name: item.name || '',
         description: item.description || '',
         price: item.price?.toString() || '',
-        priceUnit: item.priceUnit || 'per night',
-        supplierId: item.supplierId || '',
-        status: item.status || 'Available',
+        cost: item.cost?.toString() || '',
+        stock_quantity: item.stock_quantity?.toString() || '',
+        min_stock_level: item.min_stock_level?.toString() || '',
+        supplier_id: item.supplier_id || '',
+        status: item.status || 'Active',
         notes: item.notes || ''
       });
     }
@@ -91,8 +75,12 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
       newErrors.price = 'Please enter a valid price';
     }
 
-    if (!formData.supplierId) {
-      newErrors.supplierId = 'Supplier is required';
+    if (!formData.category_id) {
+      newErrors.category_id = 'Category is required';
+    }
+
+    if (!formData.supplier_id) {
+      newErrors.supplier_id = 'Supplier is required';
     }
 
     setErrors(newErrors);
@@ -108,16 +96,19 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
 
     setIsLoading(true);
     try {
-      const supplier = suppliers.find(s => s.id === formData.supplierId);
-      const updatedItem = {
-        ...item,
-        ...formData,
+      const itemData = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || undefined,
+        category_id: formData.category_id || undefined,
+        supplier_id: formData.supplier_id || undefined,
         price: Number(formData.price),
-        supplierName: supplier?.name || '',
-        updatedAt: new Date().toISOString()
+        cost: formData.cost ? Number(formData.cost) : undefined,
+        stock_quantity: formData.stock_quantity ? Number(formData.stock_quantity) : undefined,
+        min_stock_level: formData.min_stock_level ? Number(formData.min_stock_level) : undefined,
+        status: formData.status as 'Active' | 'Inactive' | 'Discontinued'
       };
 
-      await onSave(updatedItem);
+      await onSave({ ...item, ...itemData });
       onClose();
     } catch (error) {
       console.error('Error updating item:', error);
@@ -133,18 +124,14 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
     }
   };
 
-  const handleCategoryChange = (categoryType: string) => {
-    const availableUnits = priceUnits[categoryType as keyof typeof priceUnits] || ['per item'];
+  const handleCategoryChange = (categoryId: string) => {
     setFormData(prev => ({ 
       ...prev, 
-      categoryType,
-      priceUnit: availableUnits[0]
+      category_id: categoryId
     }));
   };
 
   if (!isOpen || !item) return null;
-
-  const availablePriceUnits = priceUnits[formData.categoryType as keyof typeof priceUnits] || ['per item'];
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -166,12 +153,14 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
           <form onSubmit={handleSubmit} className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Select
-                label="Category Type *"
-                value={formData.categoryType}
+                label="Category *"
+                value={formData.category_id}
                 onChange={(e) => handleCategoryChange(e.target.value)}
+                error={errors.category_id}
               >
-                {categoryTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                <option value="">Select a category</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
                 ))}
               </Select>
 
@@ -211,15 +200,32 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                 placeholder="Enter price"
               />
 
-              <Select
-                label="Price Unit"
-                value={formData.priceUnit}
-                onChange={(e) => handleInputChange('priceUnit', e.target.value)}
-              >
-                {availablePriceUnits.map(unit => (
-                  <option key={unit} value={unit}>{unit}</option>
-                ))}
-              </Select>
+              <Input
+                label="Cost"
+                type="number"
+                step="0.01"
+                value={formData.cost}
+                onChange={(e) => handleInputChange('cost', e.target.value)}
+                placeholder="Enter cost (optional)"
+              />
+
+              <Input
+                label="Stock Quantity"
+                type="number"
+                step="1"
+                value={formData.stock_quantity}
+                onChange={(e) => handleInputChange('stock_quantity', e.target.value)}
+                placeholder="Enter stock quantity"
+              />
+
+              <Input
+                label="Min Stock Level"
+                type="number"
+                step="1"
+                value={formData.min_stock_level}
+                onChange={(e) => handleInputChange('min_stock_level', e.target.value)}
+                placeholder="Enter minimum stock level"
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -227,9 +233,9 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                 </label>
                 <div className="flex space-x-2">
                   <Select
-                    value={formData.supplierId}
-                    onChange={(e) => handleInputChange('supplierId', e.target.value)}
-                    error={errors.supplierId}
+                    value={formData.supplier_id}
+                    onChange={(e) => handleInputChange('supplier_id', e.target.value)}
+                    error={errors.supplier_id}
                     className="flex-1"
                   >
                     <option value="">Select supplier</option>
@@ -246,8 +252,8 @@ export const EditItemModal: React.FC<EditItemModalProps> = ({
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-                {errors.supplierId && (
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.supplierId}</p>
+                {errors.supplier_id && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">{errors.supplier_id}</p>
                 )}
               </div>
 

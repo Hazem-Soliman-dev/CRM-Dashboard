@@ -48,11 +48,25 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
           const activities = await activityService.getActivitiesForCustomer(
             customer.id
           );
-          const bookingsData =
-            (bookingsResp &&
-              (bookingsResp.reservations || bookingsResp.bookings)) ||
-            (Array.isArray(bookingsResp) ? bookingsResp : []) ||
-            [];
+          
+          // Extract bookings from response - handle different response structures
+          let bookingsData: any[] = [];
+          if (bookingsResp) {
+            if (bookingsResp.data && Array.isArray(bookingsResp.data)) {
+              // Paginated response structure: { data: [...], pagination: {...} }
+              bookingsData = bookingsResp.data;
+            } else if (bookingsResp.reservations && Array.isArray(bookingsResp.reservations)) {
+              // Alternative structure: { reservations: [...] }
+              bookingsData = bookingsResp.reservations;
+            } else if (bookingsResp.bookings && Array.isArray(bookingsResp.bookings)) {
+              // Alternative structure: { bookings: [...] }
+              bookingsData = bookingsResp.bookings;
+            } else if (Array.isArray(bookingsResp)) {
+              // Direct array response
+              bookingsData = bookingsResp;
+            }
+          }
+          
           setBookingHistory(bookingsData);
           setActivityHistory(activities || []);
         } catch (error) {
@@ -288,50 +302,102 @@ export const ViewCustomerModal: React.FC<ViewCustomerModalProps> = ({
 
                 {/* Booking History */}
                 <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Booking History
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Booking History
+                    </h3>
+                    {bookingHistory.length > 0 && (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {bookingHistory.length} {bookingHistory.length === 1 ? 'booking' : 'bookings'}
+                      </span>
+                    )}
+                  </div>
                   <div className="space-y-4">
                     {bookingHistory.length > 0 ? (
                       bookingHistory.map((booking) => (
                         <div
-                          key={booking.id}
-                          className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg"
+                          key={booking.id || booking.reservation_id}
+                          className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow"
                         >
-                          <div className="flex items-center space-x-4">
+                          <div className="flex items-center space-x-4 flex-1">
                             <div className="p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
                               <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {booking.service_type || "N/A"}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-2 mb-1">
+                                <p className="font-medium text-gray-900 dark:text-white">
+                                  {booking.service_type || booking.serviceType || "N/A"}
+                                </p>
+                                {booking.reservation_id && (
+                                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                                    #{booking.reservation_id}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-300 font-medium mb-1">
+                                {booking.destination || "N/A"}
                               </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {booking.destination}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                {formatDate(booking.departure_date)}
-                              </p>
+                              <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
+                                <span>
+                                  Departure: {formatDate(booking.departure_date || booking.departureDate)}
+                                </span>
+                                {booking.return_date && (
+                                  <span>
+                                    Return: {formatDate(booking.return_date || booking.returnDate)}
+                                  </span>
+                                )}
+                                {(booking.adults || booking.children || booking.infants) && (
+                                  <span>
+                                    {(booking.adults || 0) + (booking.children || 0) + (booking.infants || 0)} travelers
+                                  </span>
+                                )}
+                              </div>
+                              {booking.supplier_name && (
+                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                  Supplier: {booking.supplier_name}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {formatCurrency(booking.total_amount)}
+                          <div className="text-right ml-4">
+                            <p className="font-semibold text-gray-900 dark:text-white mb-2">
+                              {formatCurrency(booking.total_amount || booking.totalAmount || 0)}
                             </p>
-                            <span
-                              className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                                booking.status
-                              )}`}
-                            >
-                              {booking.status}
-                            </span>
+                            <div className="flex flex-col items-end space-y-1">
+                              <span
+                                className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                                  booking.status
+                                )}`}
+                              >
+                                {booking.status}
+                              </span>
+                              {booking.payment_status && (
+                                <span
+                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    booking.payment_status === 'Paid'
+                                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                      : booking.payment_status === 'Partial'
+                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                      : 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-300'
+                                  }`}
+                                >
+                                  {booking.payment_status}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <p className="text-gray-500 dark:text-gray-400">
-                        No booking history found.
-                      </p>
+                      <div className="text-center py-8">
+                        <Calendar className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+                        <p className="text-gray-500 dark:text-gray-400">
+                          No booking history found.
+                        </p>
+                        <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                          Bookings will appear here once created.
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

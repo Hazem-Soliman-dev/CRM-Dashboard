@@ -8,71 +8,13 @@ interface LinkedBookingsModalProps {
   item: any;
 }
 
-const mockLinkedBookings = [
-  {
-    id: 'BK-001',
-    customerName: 'John Smith',
-    customerEmail: 'john@email.com',
-    bookingDate: '2025-01-10',
-    checkIn: '2025-02-15',
-    checkOut: '2025-02-18',
-    amount: 540,
-    status: 'Confirmed',
-    guests: 2,
-    specialRequests: 'Late check-in requested'
-  },
-  {
-    id: 'BK-002',
-    customerName: 'Sarah Wilson',
-    customerEmail: 'sarah@email.com',
-    bookingDate: '2025-01-08',
-    checkIn: '2025-03-10',
-    checkOut: '2025-03-12',
-    amount: 360,
-    status: 'Confirmed',
-    guests: 1,
-    specialRequests: 'Vegetarian meals'
-  },
-  {
-    id: 'BK-003',
-    customerName: 'Mike Johnson',
-    customerEmail: 'mike@email.com',
-    bookingDate: '2025-01-05',
-    checkIn: '2025-01-20',
-    checkOut: '2025-01-22',
-    amount: 360,
-    status: 'Completed',
-    guests: 2,
-    specialRequests: 'Airport transfer needed'
-  },
-  {
-    id: 'BK-004',
-    customerName: 'Emma Davis',
-    customerEmail: 'emma@email.com',
-    bookingDate: '2025-01-03',
-    checkIn: '2025-04-05',
-    checkOut: '2025-04-08',
-    amount: 540,
-    status: 'Pending',
-    guests: 3,
-    specialRequests: 'Family room required'
-  },
-  {
-    id: 'BK-005',
-    customerName: 'Robert Brown',
-    customerEmail: 'robert@email.com',
-    bookingDate: '2024-12-28',
-    checkIn: '2025-01-15',
-    checkOut: '2025-01-17',
-    amount: 360,
-    status: 'Completed',
-    guests: 1,
-    specialRequests: 'Business traveler'
-  }
-];
+// Note: Linked bookings will be fetched from database when reservation-item relationship is implemented
 
 export const LinkedBookingsModal: React.FC<LinkedBookingsModalProps> = ({ isOpen, onClose, item }) => {
   if (!isOpen || !item) return null;
+
+  // TODO: Fetch actual linked bookings from database when reservation-item relationship is implemented
+  const linkedBookings: any[] = [];
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -84,10 +26,10 @@ export const LinkedBookingsModal: React.FC<LinkedBookingsModalProps> = ({ isOpen
     }
   };
 
-  const totalRevenue = mockLinkedBookings.reduce((sum, booking) => sum + booking.amount, 0);
-  const totalGuests = mockLinkedBookings.reduce((sum, booking) => sum + booking.guests, 0);
-  const confirmedBookings = mockLinkedBookings.filter(b => b.status === 'Confirmed').length;
-  const completedBookings = mockLinkedBookings.filter(b => b.status === 'Completed').length;
+  const totalRevenue = linkedBookings.reduce((sum, booking) => sum + (booking.amount || 0), 0);
+  const totalGuests = linkedBookings.reduce((sum, booking) => sum + (booking.guests || 0), 0);
+  const confirmedBookings = linkedBookings.filter(b => b.status === 'Confirmed').length;
+  const completedBookings = linkedBookings.filter(b => b.status === 'Completed').length;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -114,7 +56,7 @@ export const LinkedBookingsModal: React.FC<LinkedBookingsModalProps> = ({ isOpen
                   <div>
                     <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Bookings</p>
                     <p className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-                      {mockLinkedBookings.length}
+                      {linkedBookings.length}
                     </p>
                   </div>
                   <Calendar className="h-8 w-8 text-blue-500" />
@@ -191,48 +133,61 @@ export const LinkedBookingsModal: React.FC<LinkedBookingsModalProps> = ({ isOpen
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {mockLinkedBookings.map((booking) => (
-                      <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          {booking.id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {booking.customerName}
+                    {linkedBookings.length > 0 ? (
+                      linkedBookings.map((booking) => (
+                        <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {booking.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                {booking.customerName}
+                              </div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                {booking.customerEmail}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {formatDate(booking.bookingDate)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {formatDate(booking.checkIn)}
                             </div>
                             <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {booking.customerEmail}
+                              {formatDate(booking.checkOut)}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {booking.guests}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {formatCurrency(booking.amount)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(booking.status)}`}>
+                              {booking.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
+                            {booking.specialRequests || '—'}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <div className="text-gray-500 dark:text-gray-400">
+                            <p className="text-lg font-medium mb-2">No linked bookings found</p>
+                            <p className="text-sm">
+                              Bookings will appear here when reservations are linked to this item.
+                            </p>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {formatDate(booking.bookingDate)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">
-                            {formatDate(booking.checkIn)}
-                          </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {formatDate(booking.checkOut)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {booking.guests}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                          {formatCurrency(booking.amount)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(booking.status)}`}>
-                            {booking.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">
-                          {booking.specialRequests}
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

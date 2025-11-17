@@ -8,50 +8,24 @@ interface ViewItemModalProps {
   item: any;
 }
 
-const mockBookingHistory = [
-  {
-    id: 'BK-001',
-    customerName: 'John Smith',
-    bookingDate: '2025-01-10',
-    checkIn: '2025-02-15',
-    checkOut: '2025-02-18',
-    amount: 540,
-    status: 'Confirmed'
-  },
-  {
-    id: 'BK-002',
-    customerName: 'Sarah Wilson',
-    bookingDate: '2025-01-08',
-    checkIn: '2025-03-10',
-    checkOut: '2025-03-12',
-    amount: 360,
-    status: 'Confirmed'
-  },
-  {
-    id: 'BK-003',
-    customerName: 'Mike Johnson',
-    bookingDate: '2025-01-05',
-    checkIn: '2025-01-20',
-    checkOut: '2025-01-22',
-    amount: 360,
-    status: 'Completed'
-  }
-];
+// Note: Booking history will be fetched from database when reservation-item relationship is implemented
 
 export const ViewItemModal: React.FC<ViewItemModalProps> = ({ isOpen, onClose, item }) => {
   if (!isOpen || !item) return null;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Available': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
-      case 'Booked': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300';
-      case 'Inactive': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300';
+      case 'Active': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300';
+      case 'Inactive': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
+      case 'Discontinued': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
     }
   };
 
-  const totalRevenue = mockBookingHistory.reduce((sum, booking) => sum + booking.amount, 0);
-  const avgBookingValue = totalRevenue / mockBookingHistory.length;
+  // TODO: Fetch actual booking history from database when reservation-item relationship is implemented
+  const bookingHistory: any[] = [];
+  const totalRevenue = 0;
+  const avgBookingValue = 0;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -132,29 +106,38 @@ export const ViewItemModal: React.FC<ViewItemModalProps> = ({ isOpen, onClose, i
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                     Recent Bookings
                   </h3>
-                  <div className="space-y-3">
-                    {mockBookingHistory.map((booking) => (
-                      <div key={booking.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{booking.customerName}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {formatDate(booking.checkIn)} - {formatDate(booking.checkOut)}
-                          </p>
-                          <p className="text-xs text-gray-400">Booked: {formatDate(booking.bookingDate)}</p>
+                  {bookingHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {bookingHistory.map((booking) => (
+                        <div key={booking.id} className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-lg">
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">{booking.customerName}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              {formatDate(booking.checkIn)} - {formatDate(booking.checkOut)}
+                            </p>
+                            <p className="text-xs text-gray-400">Booked: {formatDate(booking.bookingDate)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(booking.amount)}</p>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              booking.status === 'Confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
+                              booking.status === 'Completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
+                            }`}>
+                              {booking.status}
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(booking.amount)}</p>
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            booking.status === 'Confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' :
-                            booking.status === 'Completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' :
-                            'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300'
-                          }`}>
-                            {booking.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 dark:text-gray-400">No bookings found for this item.</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
+                        Bookings will appear here when reservations are linked to items.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -168,7 +151,7 @@ export const ViewItemModal: React.FC<ViewItemModalProps> = ({ isOpen, onClose, i
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Total Bookings</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{item.linkedBookings}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{bookingHistory.length}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Total Revenue</span>
@@ -176,7 +159,9 @@ export const ViewItemModal: React.FC<ViewItemModalProps> = ({ isOpen, onClose, i
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Avg. Booking Value</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(avgBookingValue)}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">
+                        {bookingHistory.length > 0 ? formatCurrency(avgBookingValue) : '$0.00'}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600 dark:text-gray-400">Created</span>
@@ -223,7 +208,7 @@ export const ViewItemModal: React.FC<ViewItemModalProps> = ({ isOpen, onClose, i
                     </div>
                     <span className="text-sm font-medium text-blue-800 dark:text-blue-300">4.8/5</span>
                   </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Based on {item.linkedBookings} reviews</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">Based on {bookingHistory.length} reviews</p>
                 </div>
               </div>
             </div>

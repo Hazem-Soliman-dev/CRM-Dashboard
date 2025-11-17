@@ -1,53 +1,52 @@
-import React, { useState } from 'react';
-import { X, Save, MessageSquare, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, MessageSquare, Send, Trash2, Edit } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Select } from '../ui/Select';
 import { formatDate } from '../../utils/format';
+import reservationNoteService, { ReservationNote } from '../../services/reservationNoteService';
+import { useToastContext } from '../../contexts/ToastContext';
 
 interface NotesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (note: string) => Promise<void>;
+  onSave?: (note: string) => Promise<void>; // Optional for backward compatibility
   reservation: any;
 }
-
-const mockExistingNotes = [
-  {
-    id: 1,
-    content: 'Customer confirmed Nile view room preference. Contacted supplier for availability.',
-    author: 'Sarah Johnson',
-    department: 'Reservation',
-    timestamp: '2025-01-15T10:30:00Z',
-    type: 'internal',
-    recipient: null
-  },
-  {
-    id: 2,
-    content: 'Payment request sent to Finance team. Awaiting deposit confirmation.',
-    author: 'Sarah Johnson',
-    department: 'Reservation',
-    timestamp: '2025-01-14T16:45:00Z',
-    type: 'interdepartmental',
-    recipient: 'Finance'
-  },
-  {
-    id: 3,
-    content: 'Supplier response received. Room available but rate increased by $20/night.',
-    author: 'Sarah Johnson',
-    department: 'Reservation',
-    timestamp: '2025-01-13T09:15:00Z',
-    type: 'supplier_update',
-    recipient: null
-  }
-];
 
 const departments = ['Sales', 'Finance', 'Operations', 'Customer Service'];
 
 export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave, reservation }) => {
+  const toast = useToastContext();
+  const [notes, setNotes] = useState<ReservationNote[]>([]);
   const [newNote, setNewNote] = useState('');
   const [noteType, setNoteType] = useState<'internal' | 'interdepartmental'>('internal');
   const [targetDepartment, setTargetDepartment] = useState('Sales');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState('');
+
+  // Load notes when modal opens
+  useEffect(() => {
+    if (isOpen && reservation?.id) {
+      loadNotes();
+    }
+  }, [isOpen, reservation?.id]);
+
+  const loadNotes = async () => {
+    if (!reservation?.id) return;
+    
+    setIsLoadingNotes(true);
+    try {
+      const fetchedNotes = await reservationNoteService.getNotesByReservationId(reservation.id);
+      setNotes(fetchedNotes);
+    } catch (error: any) {
+      console.error('Error loading notes:', error);
+      toast.error('Error', 'Failed to load notes');
+    } finally {
+      setIsLoadingNotes(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,14 +55,74 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
       return;
     }
 
+    if (!reservation?.id) {
+      toast.error('Error', 'Reservation ID is required');
+      return;
+    }
+
     setIsLoading(true);
     try {
+      await reservationNoteService.createNote(reservation.id, {
+        note: newNote,
+        note_type: noteType,
+        target_department: noteType === 'interdepartmental' ? targetDepartment : undefined
+      });
 
-      await onSave(newNote);
       setNewNote('');
-      onClose();
-    } catch (error) {
+      setNoteType('internal');
+      setTargetDepartment('Sales');
+      await loadNotes();
+      toast.success('Success', 'Note created successfully');
+    } catch (error: any) {
       console.error('Error saving note:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to save note');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditNote = (note: ReservationNote) => {
+    setEditingNoteId(note.id);
+    setEditNoteContent(note.note);
+  };
+
+  const handleUpdateNote = async (noteId: number) => {
+    if (!editNoteContent.trim()) {
+      toast.error('Error', 'Note content cannot be empty');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await reservationNoteService.updateNote(noteId, {
+        note: editNoteContent
+      });
+
+      setEditingNoteId(null);
+      setEditNoteContent('');
+      await loadNotes();
+      toast.success('Success', 'Note updated successfully');
+    } catch (error: any) {
+      console.error('Error updating note:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to update note');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: number) => {
+    if (!window.confirm('Are you sure you want to delete this note?')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await reservationNoteService.deleteNote(noteId);
+      await loadNotes();
+      toast.success('Success', 'Note deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting note:', error);
+      toast.error('Error', error.response?.data?.message || 'Failed to delete note');
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +148,7 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
             <div className="flex items-center space-x-3">
               <MessageSquare className="h-6 w-6 text-green-500" />
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Internal Communication - {reservation.id}
+                Internal Communication - {reservation.reservation_id || reservation.id}
               </h2>
             </div>
             <button
@@ -120,28 +179,89 @@ export const NotesModal: React.FC<NotesModalProps> = ({ isOpen, onClose, onSave,
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                   Communication History
                 </h3>
-                <div className="space-y-4 max-h-80 overflow-y-auto">
-                  {mockExistingNotes.map((note) => (
-                    <div key={note.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getNoteTypeColor(note.type)}`}>
-                            {note.type === 'internal' ? 'Internal' : 
-                             note.type === 'interdepartmental' ? `To ${note.recipient}` : 
-                             'Supplier Update'}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatDate(note.timestamp)}
-                        </div>
+                {isLoadingNotes ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Loading notes...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-80 overflow-y-auto">
+                    {notes.length === 0 ? (
+                      <div className="text-center py-8">
+                        <MessageSquare className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No notes yet</p>
                       </div>
-                      <p className="text-gray-700 dark:text-gray-300 mb-2">{note.content}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        by {note.author} ({note.department})
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                    ) : (
+                      notes.map((note) => (
+                        <div key={note.id} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getNoteTypeColor(note.note_type)}`}>
+                                {note.note_type === 'internal' ? 'Internal' : 
+                                 note.note_type === 'interdepartmental' ? `To ${note.target_department}` : 
+                                 'Supplier Update'}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatDate(note.created_at)}
+                              </div>
+                              <button
+                                onClick={() => handleEditNote(note)}
+                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 p-1"
+                                title="Edit note"
+                              >
+                                <Edit className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteNote(note.id)}
+                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 p-1"
+                                title="Delete note"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                          {editingNoteId === note.id ? (
+                            <div className="space-y-2">
+                              <textarea
+                                value={editNoteContent}
+                                onChange={(e) => setEditNoteContent(e.target.value)}
+                                rows={3}
+                                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <div className="flex space-x-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUpdateNote(note.id)}
+                                  disabled={isLoading}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingNoteId(null);
+                                    setEditNoteContent('');
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-gray-700 dark:text-gray-300 mb-2">{note.note}</p>
+                          )}
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            by {note.created_by_user?.full_name || 'Unknown'} 
+                            {note.created_by_user?.email ? ` (${note.created_by_user.email})` : ''}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Add New Note */}
