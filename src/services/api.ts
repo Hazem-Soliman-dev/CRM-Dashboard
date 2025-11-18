@@ -1,10 +1,20 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 
-// Validate environment variables
+// API Base URL configuration with environment detection
 const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
-if (!import.meta.env.VITE_API_BASE_URL && import.meta.env.MODE === 'development') {
-  console.warn('⚠️  VITE_API_BASE_URL not set. Using default:', apiBaseURL);
+// Log configuration in development
+if (import.meta.env.MODE === 'development') {
+  if (!import.meta.env.VITE_API_BASE_URL) {
+    console.warn('⚠️  VITE_API_BASE_URL not set. Using default:', apiBaseURL);
+  } else {
+    console.log('🔗 API Base URL:', apiBaseURL);
+  }
+}
+
+// Production check - warn if not configured properly
+if (import.meta.env.MODE === 'production' && !import.meta.env.VITE_API_BASE_URL) {
+  console.error('❌ VITE_API_BASE_URL not set in production! API calls may fail.');
 }
 
 // Create axios instance
